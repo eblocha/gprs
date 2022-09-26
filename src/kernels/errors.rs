@@ -1,8 +1,8 @@
 pub enum InvalidKernelError {
     /// A negative or zero length scale was provided
     NonPositiveLengthScale,
-    /// An empty vector was provided for the length scale
-    EmptyLengthScale,
+    /// An invalid-length vector was provided for the length scale
+    LengthScaleSizeInvalid,
 }
 
 pub struct CovarianceParamLengthError {

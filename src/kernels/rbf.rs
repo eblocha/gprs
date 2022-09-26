@@ -18,19 +18,28 @@ use super::kernel::{CovarianceResult, Kernel, KernelResult};
 /// let K = kern.call(&x, &y)?;
 /// ```
 #[derive(Debug)]
-pub struct RBF {
-    gamma: Vec<f64>,
+pub struct RBF<const DIMS: usize> {
+    gamma: [f64; DIMS],
 }
 
-impl RBF {
+impl<const DIMS: usize> RBF<DIMS> {
     pub fn new(length_scale: &Vec<f64>) -> KernelResult<Self> {
         let gamma = Self::gamma(length_scale)?;
         Ok(RBF { gamma })
     }
 
-    fn gamma(length_scale: &Vec<f64>) -> KernelResult<Vec<f64>> {
-        if length_scale.len() == 0 {
-            return Err(InvalidKernelError::EmptyLengthScale);
+    /// Set the length scale of the kernel
+    pub fn set_length_scale(&mut self, length_scale: &Vec<f64>) -> KernelResult<()> {
+        self.gamma = Self::gamma(length_scale)?;
+        Ok(())
+    }
+
+    /// Compute the gamma property from a length scale vec
+    ///
+    /// This speeds up covariance computation by pre-computing `-1 / (2 * l^2)`
+    fn gamma(length_scale: &Vec<f64>) -> KernelResult<[f64; DIMS]> {
+        if length_scale.len() != DIMS {
+            return Err(InvalidKernelError::LengthScaleSizeInvalid);
         }
 
         let all_positive = length_scale.iter().all(|l| *l > 0.0);
@@ -39,26 +48,27 @@ impl RBF {
             return Err(InvalidKernelError::NonPositiveLengthScale);
         }
 
-        return Ok(length_scale.iter().map(|v| -0.5 / (*v * *v)).collect());
-    }
+        let mut gamma: [f64; DIMS] = [1.0; DIMS];
 
-    /// Set the length scale of the kernel
-    pub fn set_length_scale(&mut self, length_scale: &Vec<f64>) -> KernelResult<()> {
-        self.gamma = Self::gamma(length_scale)?;
-        Ok(())
+        length_scale
+            .iter()
+            .enumerate()
+            .for_each(|(index, v)| gamma[index] = *v);
+
+        return Ok(gamma);
     }
 }
 
-impl Kernel for RBF {
+impl<const DIMS: usize> Kernel for RBF<DIMS> {
     fn call(&self, x: &Vec<f64>, y: &Vec<f64>) -> CovarianceResult<f64> {
         let x_len = x.len();
         let y_len = y.len();
 
-        if x_len != self.gamma.len() || y_len != self.gamma.len() {
+        if x_len != DIMS || y_len != DIMS {
             return Err(CovarianceParamLengthError {
                 x_len,
                 y_len,
-                expected: self.gamma.len(),
+                expected: DIMS,
             });
         }
 
