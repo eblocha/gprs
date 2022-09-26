@@ -9,12 +9,13 @@ use super::kernel::{CovarianceResult, Kernel, KernelResult};
 /// and `l` is the length scale
 ///
 /// # Examples
-/// ```
-/// use gprs::kernels::RBF;
+/// ```no_run
 /// // create a 2-d RBF kernel
-/// let kern = RBF::new(vec![1.0, 2.0]);
+/// let length_scale = vec![1.0, 2.0]
+/// let kern = RBF::new(&length_scale)?;
 /// // estimate covariance between 2 points
-/// let K = kern.call(vec![1.8, 5.5], vec![2.2, 3.0])?;
+/// let (x, y) = (vec![1.8, 5.5], vec![2.2, 3.0]);
+/// let K = kern.call(&x, &y)?;
 /// ```
 #[derive(Debug)]
 pub struct RBF {
