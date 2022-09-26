@@ -53,13 +53,13 @@ impl<const DIMS: usize> RBF<DIMS> {
         length_scale
             .iter()
             .enumerate()
-            .for_each(|(index, v)| gamma[index] = *v);
+            .for_each(|(index, v)| gamma[index] = -0.5 / (*v * *v));
 
         return Ok(gamma);
     }
 }
 
-impl<const DIMS: usize> Kernel for RBF<DIMS> {
+impl<const DIMS: usize> Kernel<[f64; DIMS]> for RBF<DIMS> {
     fn call(&self, x: &Vec<f64>, y: &Vec<f64>) -> CovarianceResult<f64> {
         let x_len = x.len();
         let y_len = y.len();
@@ -83,5 +83,13 @@ impl<const DIMS: usize> Kernel for RBF<DIMS> {
             .sum();
 
         return Ok(diffs.exp());
+    }
+
+    fn get_params(&self) -> [f64; DIMS] {
+        self.gamma
+    }
+
+    fn set_params(&mut self, params: [f64; DIMS]) {
+        self.gamma = params;
     }
 }
