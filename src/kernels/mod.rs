@@ -1,3 +1,6 @@
 pub mod errors;
-pub mod kernel;
-pub mod rbf;
+mod kernel;
+mod rbf;
+
+pub use kernel::Kernel;
+pub use rbf::RBF;
