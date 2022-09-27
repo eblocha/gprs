@@ -1,11 +1,10 @@
-use super::errors::{CovarianceParamLengthError, InvalidKernelError};
+use super::errors::InvalidKernelError;
 
 pub type KernelResult<T> = Result<T, InvalidKernelError>;
-pub type CovarianceResult<T> = Result<T, CovarianceParamLengthError>;
 
-pub trait Kernel<P> {
+pub trait Kernel<P, const DIMS: usize> {
     /// Compute the covariance
-    fn call<'x, 'y>(&self, x: &'x Vec<f64>, y: &'y Vec<f64>) -> CovarianceResult<f64>;
+    fn call(&self, x: [f64; DIMS], y: [f64; DIMS]) -> f64;
     /// Get the kernel parameters
     fn get_params(&self) -> P;
     /// Set the kernel parameters

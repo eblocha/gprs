@@ -13,11 +13,12 @@ use gprs::kernels::RBF
 
 fn main() {
     // create a 2-d anisotropic RBF kernel with length scales of 1.0 and 2.0
-    let kern = RBF::<2>::new(&vec![1.0, 2.0]).unwrap();
+    // this will return an Err if any length scale is <= 0
+    let kern = RBF::new([1.0, 2.0]).unwrap();
 
     // compute the covariance using the kernel
-    let (x, y) = (vec![1.8, 5.5], vec![2.2, 3.0]);
-    let k = kern.call(&x, &y).unwrap();
+    let (x, y) = ([1.8, 5.5], [2.2, 3.0]);
+    let k = kern.call(x, y).unwrap();
 }
 ```
 
