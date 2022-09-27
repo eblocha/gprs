@@ -53,7 +53,7 @@ impl<const DIMS: usize> RBF<DIMS> {
         length_scale
             .iter()
             .enumerate()
-            .for_each(|(index, v)| gamma[index] = -0.5 / (*v * *v));
+            .for_each(|(index, v)| gamma[index] = -0.5 / (v * v));
 
         return Ok(gamma);
     }
@@ -91,5 +91,9 @@ impl<const DIMS: usize> Kernel<[f64; DIMS]> for RBF<DIMS> {
 
     fn set_params(&mut self, params: [f64; DIMS]) {
         self.gamma = params;
+    }
+
+    fn from_params(params: [f64; DIMS]) -> Self {
+        return RBF { gamma: params };
     }
 }

@@ -8,4 +8,5 @@ pub trait Kernel<P> {
     fn call<'x, 'y>(&self, x: &'x Vec<f64>, y: &'y Vec<f64>) -> CovarianceResult<f64>;
     fn get_params(&self) -> P;
     fn set_params(&mut self, params: P);
+    fn from_params(params: P) -> Self;
 }
