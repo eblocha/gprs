@@ -67,12 +67,14 @@ impl RBF {
     }
 
     /// Compute the covariance between 2 points
-    fn call_slice(&self, x_slice: &Slice, y_slice: &Slice) -> f64 {
+    ///
+    /// Unsafe to call if the dimensions have not been checked
+    unsafe fn call_slice(&self, x_slice: &Slice, y_slice: &Slice) -> f64 {
         self.gamma
             .iter()
             .enumerate()
             .map(|(index, g)| {
-                let diff = x_slice[index] - y_slice[index];
+                let diff = x_slice.get_unchecked(index) - y_slice.get_unchecked(index);
                 diff * diff * g
             })
             .sum::<f64>()
@@ -121,7 +123,7 @@ impl Kernel<DVector<f64>> for RBF {
             for j in i..x_shape.0 {
                 let y_slice = x.row(j);
 
-                let cell = self.call_slice(&x_slice, &y_slice);
+                let cell = unsafe { self.call_slice(&x_slice, &y_slice) };
 
                 unsafe { *value.get_unchecked_mut((i, j)) = cell };
 
