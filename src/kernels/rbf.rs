@@ -184,9 +184,9 @@ mod tests {
         let kern = RBF::<2>::new(&vec![0.5, 2.0]).unwrap();
         // gamma = -0.5 / [0.25, 4.0] = [-2.0, -0.125]
 
-        let (x, y) = (vec![1.0, 1.0], vec![3.0, 3.0]);
+        let (x, y) = (vec![1.0, 1.0], vec![3.0, 4.0]);
         let k = kern.call(&x, &y).unwrap();
 
-        assert_eq!(k, (-8.5 as f64).exp());
+        assert_eq!(k, (-9.125 as f64).exp());
     }
 }
