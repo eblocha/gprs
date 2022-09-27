@@ -100,7 +100,7 @@ impl Kernel<DVector<f64>> for RBF {
 
         for (i, x_slice) in x.row_iter().enumerate() {
             for (j, y_slice) in y.row_iter().enumerate() {
-                *value.index_mut((i, j)) = self.call_slice(&x_slice, &y_slice);
+                unsafe { *value.get_unchecked_mut((i, j)) = self.call_slice(&x_slice, &y_slice) };
             }
         }
 
@@ -123,10 +123,10 @@ impl Kernel<DVector<f64>> for RBF {
 
                 let cell = self.call_slice(&x_slice, &y_slice);
 
-                *value.index_mut((i, j)) = cell;
+                unsafe { *value.get_unchecked_mut((i, j)) = cell };
 
                 if i != j {
-                    *value.index_mut((j, i)) = cell;
+                    unsafe { *value.get_unchecked_mut((j, i)) = cell };
                 }
             }
         }
