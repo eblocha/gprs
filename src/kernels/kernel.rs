@@ -1,11 +1,16 @@
-use ::nalgebra::DVector;
+use nalgebra::DMatrix;
+
+use super::errors::MismatchedSizeError;
 
 pub trait Kernel<P> {
-    /// Compute the covariance
+    /// Compute the covariance between sets of points
     ///
-    /// # Panics
-    /// May panic if `x` or `y` do not have the correct length
-    fn call<'x, 'y>(&self, x: &'x DVector<f64>, y: &'y DVector<f64>) -> f64;
+    /// Returns a MismatchedSizeError if the dimensions are not valid
+    fn call<'x, 'y>(
+        &self,
+        x: &'x DMatrix<f64>,
+        y: &'y DMatrix<f64>,
+    ) -> Result<DMatrix<f64>, MismatchedSizeError>;
     /// Get the kernel parameters
     fn get_params(&self) -> &P;
     /// Set the kernel parameters

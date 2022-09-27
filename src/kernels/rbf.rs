@@ -1,6 +1,6 @@
-use nalgebra::DVector;
+use nalgebra::{DMatrix, DVector};
 
-use super::kernel::Kernel;
+use super::{errors::MismatchedSizeError, kernel::Kernel};
 
 /// Radial Basis Function kernel
 ///
@@ -13,13 +13,26 @@ use super::kernel::Kernel;
 ///
 /// ```rust
 /// use gprs::kernels::{RBF,Kernel};
-/// use nalgebra::DVector;
+/// use nalgebra::{DVector,DMatrix};
 ///
 /// // create a 2-d RBF kernel
 /// let kern = RBF::new(DVector::from_vec(vec![1.0, 2.0]));
-/// // estimate covariance between 2 points
-/// let (x, y) = (DVector::from_vec(vec![1.8, 5.5]), DVector::from_vec(vec![2.2, 3.0]));
-/// let k = kern.call(&x, &y);
+/// // estimate covariance between 2 sets of points
+/// let x = DMatrix::from_vec(3, 2, vec![
+///     1.8, 5.5,
+///     1.5, 4.5,
+///     2.3, 4.6
+/// ]);
+///
+/// let y = DMatrix::from_vec(4, 2, vec![
+///     2.2, 3.0,
+///     1.8, 5.5,
+///     1.5, 4.5,
+///     2.3, 4.6
+/// ]);
+///
+/// let k = kern.call(&x, &y).unwrap();
+/// assert_eq!(k.shape(), (3, 4))
 /// ```
 ///
 /// Create a kernel using gamma directly:
@@ -28,7 +41,7 @@ use super::kernel::Kernel;
 /// use gprs::kernels::{RBF,Kernel};
 /// use nalgebra::DVector;
 ///
-/// let kern = RBF::from_params(DVector::from_vec(vec![1.0, 2.0]));
+/// let kern = RBF::from_params(DVector::from_vec(vec![-0.5, -0.125]));
 /// ```
 #[derive(Debug)]
 pub struct RBF {
@@ -51,19 +64,39 @@ impl RBF {
 }
 
 impl Kernel<DVector<f64>> for RBF {
-    fn call(&self, x: &DVector<f64>, y: &DVector<f64>) -> f64 {
-        let k = self
-            .gamma
-            .iter()
-            .enumerate()
-            .map(|(index, g)| {
-                let diff = x[index] - y[index];
-                diff * diff * g
-            })
-            .sum::<f64>()
-            .exp();
+    fn call(
+        &self,
+        x: &DMatrix<f64>,
+        y: &DMatrix<f64>,
+    ) -> Result<DMatrix<f64>, MismatchedSizeError> {
+        let x_shape = x.shape();
+        let y_shape = y.shape();
 
-        return k;
+        if x_shape.1 != self.gamma.len() || y_shape.1 != self.gamma.len() {
+            return Err(MismatchedSizeError {
+                shapes: vec![x_shape, y_shape, self.gamma.shape()],
+            });
+        }
+
+        // initialize memory
+        let mut value = DMatrix::<f64>::zeros(x_shape.0, y_shape.0);
+
+        for (i, x_slice) in x.row_iter().enumerate() {
+            for (j, y_slice) in y.row_iter().enumerate() {
+                *value.index_mut((i, j)) = self
+                    .gamma
+                    .iter()
+                    .enumerate()
+                    .map(|(index, g)| {
+                        let diff = x_slice[index] - y_slice[index];
+                        diff * diff * g
+                    })
+                    .sum::<f64>()
+                    .exp();
+            }
+        }
+
+        return Ok(value);
     }
 
     fn get_params(&self) -> &DVector<f64> {
@@ -81,27 +114,35 @@ impl Kernel<DVector<f64>> for RBF {
 
 #[cfg(test)]
 mod tests {
-    use nalgebra::DVector;
-
     use crate::kernels::{Kernel, RBF};
+    use nalgebra::{DMatrix, DVector};
 
     fn create(v: Vec<f64>) -> RBF {
         let length_scale = DVector::from_vec(v);
         RBF::new(length_scale)
     }
 
-    fn create_points(x: Vec<f64>, y: Vec<f64>) -> (DVector<f64>, DVector<f64>) {
-        (DVector::from_vec(x), DVector::from_vec(y))
+    /// Passing invalid data will return an error
+    #[test]
+    #[should_panic]
+    fn test_mismatched() {
+        let kern = create(vec![1.0]);
+
+        let x = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
+        let y = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
+        kern.call(&x, &y).unwrap();
     }
 
     /// Passing a zero lengthscale will produce NaN
     #[test]
     fn test_zero_lengthscale() {
         let kern = create(vec![0.0]);
-        let (x, y) = create_points(vec![1.0], vec![1.0]);
-        let k = kern.call(&x, &y);
+        let x = DMatrix::from_vec(1, 1, vec![1.0]);
 
-        assert!(k.is_nan());
+        let y = DMatrix::from_vec(1, 1, vec![1.0]);
+        let k = kern.call(&x, &y).unwrap();
+
+        assert!(k[0].is_nan());
     }
 
     /// The covariance of a point to itself is 1.0
@@ -109,10 +150,11 @@ mod tests {
     fn test_1d_identity() {
         let kern = create(vec![1.0]);
 
-        let (x, y) = create_points(vec![1.0], vec![1.0]);
-        let k = kern.call(&x, &y);
+        let x = DMatrix::from_vec(1, 1, vec![1.0]);
+        let y = DMatrix::from_vec(1, 1, vec![1.0]);
+        let k = kern.call(&x, &y).unwrap();
 
-        assert_eq!(k, 1.0);
+        assert_eq!(k[0], 1.0);
     }
 
     /// The covariance function is commutative
@@ -120,9 +162,10 @@ mod tests {
     fn test_1d_symmetry() {
         let kern = create(vec![1.0]);
 
-        let (x, y) = create_points(vec![1.0], vec![2.0]);
-        let k1 = kern.call(&x, &y);
-        let k2 = kern.call(&y, &x);
+        let x = DMatrix::from_vec(1, 1, vec![1.0]);
+        let y = DMatrix::from_vec(1, 1, vec![2.0]);
+        let k1 = kern.call(&x, &y).unwrap();
+        let k2 = kern.call(&y, &x).unwrap();
 
         assert_eq!(k1, k2);
     }
@@ -132,29 +175,32 @@ mod tests {
         let kern = create(vec![0.5]);
         // gamma should be -0.5 / 0.25 = -2.0
 
-        let (x, y) = create_points(vec![1.0], vec![3.0]);
-        let k = kern.call(&x, &y);
+        let x = DMatrix::from_vec(1, 1, vec![1.0]);
+        let y = DMatrix::from_vec(1, 1, vec![3.0]);
+        let k = kern.call(&x, &y).unwrap();
 
-        assert_eq!(k, (-8.0 as f64).exp());
+        assert_eq!(k[0], (-8.0 as f64).exp());
     }
 
     #[test]
     fn test_2d_identity() {
         let kern = create(vec![1.0, 2.0]);
 
-        let (x, y) = create_points(vec![1.0, 1.0], vec![1.0, 1.0]);
-        let k = kern.call(&x, &y);
+        let x = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
+        let y = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
+        let k = kern.call(&x, &y).unwrap();
 
-        assert_eq!(k, 1.0);
+        assert_eq!(k[0], 1.0);
     }
 
     #[test]
     fn test_2d_symmetry() {
         let kern = create(vec![1.0, 2.0]);
 
-        let (x, y) = create_points(vec![1.0, 1.0], vec![2.0, 2.0]);
-        let k1 = kern.call(&x, &y);
-        let k2 = kern.call(&y, &x);
+        let x = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
+        let y = DMatrix::from_vec(1, 2, vec![2.0, 2.0]);
+        let k1 = kern.call(&x, &y).unwrap();
+        let k2 = kern.call(&y, &x).unwrap();
 
         assert_eq!(k1, k2);
     }
@@ -164,9 +210,10 @@ mod tests {
         let kern = create(vec![0.5, 2.0]);
         // gamma = -0.5 / [0.25, 4.0] = [-2.0, -0.125]
 
-        let (x, y) = create_points(vec![1.0, 1.0], vec![3.0, 4.0]);
-        let k = kern.call(&x, &y);
+        let x = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
+        let y = DMatrix::from_vec(1, 2, vec![3.0, 4.0]);
+        let k = kern.call(&x, &y).unwrap();
 
-        assert_eq!(k, (-9.125 as f64).exp());
+        assert_eq!(k[0], (-9.125 as f64).exp());
     }
 }
