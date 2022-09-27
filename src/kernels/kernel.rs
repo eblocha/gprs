@@ -1,12 +1,10 @@
-use super::errors::InvalidKernelError;
+use ::nalgebra::DVector;
 
-pub type KernelResult<T> = Result<T, InvalidKernelError>;
-
-pub trait Kernel<P, const DIMS: usize> {
+pub trait Kernel<P> {
     /// Compute the covariance
-    fn call(&self, x: [f64; DIMS], y: [f64; DIMS]) -> f64;
+    fn call<'x, 'y>(&self, x: &'x DVector<f64>, y: &'y DVector<f64>) -> f64;
     /// Get the kernel parameters
-    fn get_params(&self) -> P;
+    fn get_params(&self) -> &P;
     /// Set the kernel parameters
     fn set_params(&mut self, params: P);
     /// Create a new kernel from parameters
