@@ -66,7 +66,7 @@ impl<const DIMS: usize> Kernel<[f64; DIMS]> for RBF<DIMS> {
             });
         }
 
-        let diffs: f64 = self
+        let k = self
             .gamma
             .iter()
             .enumerate()
@@ -74,9 +74,10 @@ impl<const DIMS: usize> Kernel<[f64; DIMS]> for RBF<DIMS> {
                 let diff = x[index] - y[index];
                 diff * diff * g
             })
-            .sum();
+            .sum::<f64>()
+            .exp();
 
-        return Ok(diffs.exp());
+        return Ok(k);
     }
 
     fn get_params(&self) -> [f64; DIMS] {
