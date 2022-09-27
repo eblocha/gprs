@@ -1,4 +1,4 @@
-use nalgebra::{DMatrix, DVector};
+use nalgebra::{Const, DMatrix, DVector, Dynamic, Matrix, SliceStorage};
 
 use super::{errors::IncompatibleShapeError, kernel::Kernel};
 
@@ -48,6 +48,10 @@ pub struct RBF {
     gamma: DVector<f64>,
 }
 
+/// Matrix slice representing a single point in the input space
+type Slice<'a> =
+    Matrix<f64, Const<1>, Dynamic, SliceStorage<'a, f64, Const<1>, Dynamic, Const<1>, Dynamic>>;
+
 impl RBF {
     /// Create a new kernel from a length scale. Length scales are squared.
     pub fn new(length_scale: DVector<f64>) -> Self {
@@ -60,6 +64,19 @@ impl RBF {
     /// This speeds up covariance computation by pre-computing `-1 / (2 * l^2)`
     fn gamma(length_scale: DVector<f64>) -> DVector<f64> {
         return length_scale.map(|v| -0.5 / (v * v));
+    }
+
+    /// Compute the covariance between 2 points
+    fn call_slice(&self, x_slice: &Slice, y_slice: &Slice) -> f64 {
+        self.gamma
+            .iter()
+            .enumerate()
+            .map(|(index, g)| {
+                let diff = x_slice[index] - y_slice[index];
+                diff * diff * g
+            })
+            .sum::<f64>()
+            .exp()
     }
 }
 
@@ -83,16 +100,34 @@ impl Kernel<DVector<f64>> for RBF {
 
         for (i, x_slice) in x.row_iter().enumerate() {
             for (j, y_slice) in y.row_iter().enumerate() {
-                *value.index_mut((i, j)) = self
-                    .gamma
-                    .iter()
-                    .enumerate()
-                    .map(|(index, g)| {
-                        let diff = x_slice[index] - y_slice[index];
-                        diff * diff * g
-                    })
-                    .sum::<f64>()
-                    .exp();
+                *value.index_mut((i, j)) = self.call_slice(&x_slice, &y_slice);
+            }
+        }
+
+        return Ok(value);
+    }
+
+    fn call_symmetric(&self, x: &DMatrix<f64>) -> Result<DMatrix<f64>, IncompatibleShapeError> {
+        let x_shape = x.shape();
+        if x_shape.1 != self.gamma.len() {
+            return Err(IncompatibleShapeError {
+                shapes: vec![x_shape, self.gamma.shape()],
+            });
+        }
+
+        let mut value = DMatrix::<f64>::zeros(x_shape.0, x_shape.0);
+
+        for (i, x_slice) in x.row_iter().enumerate() {
+            for j in i..x_shape.0 {
+                let y_slice = x.row(j);
+
+                let cell = self.call_slice(&x_slice, &y_slice);
+
+                *value.index_mut((i, j)) = cell;
+
+                if i != j {
+                    *value.index_mut((j, i)) = cell;
+                }
             }
         }
 

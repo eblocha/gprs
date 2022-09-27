@@ -11,6 +11,10 @@ pub trait Kernel<P> {
         x: &'x DMatrix<f64>,
         y: &'y DMatrix<f64>,
     ) -> Result<DMatrix<f64>, IncompatibleShapeError>;
+    /// Compute the covariance between all pairs amongst `x`
+    ///
+    /// This can be more efficient than calling `call(&x, &x)`
+    fn call_symmetric(&self, x: &DMatrix<f64>) -> Result<DMatrix<f64>, IncompatibleShapeError>;
     /// Get the kernel parameters
     fn get_params(&self) -> &P;
     /// Set the kernel parameters
