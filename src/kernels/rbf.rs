@@ -28,12 +28,6 @@ impl<const DIMS: usize> RBF<DIMS> {
         Ok(RBF { gamma })
     }
 
-    /// Set the length scale of the kernel
-    pub fn set_length_scale(&mut self, length_scale: &Vec<f64>) -> KernelResult<()> {
-        self.gamma = Self::gamma(length_scale)?;
-        Ok(())
-    }
-
     /// Compute the gamma property from a length scale vec
     ///
     /// This speeds up covariance computation by pre-computing `-1 / (2 * l^2)`
