@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum InvalidKernelError {
     /// A negative or zero length scale was provided
     NonPositiveLengthScale,
@@ -5,6 +6,7 @@ pub enum InvalidKernelError {
     LengthScaleSizeInvalid,
 }
 
+#[derive(Debug)]
 pub struct CovarianceParamLengthError {
     pub expected: usize,
     pub x_len: usize,

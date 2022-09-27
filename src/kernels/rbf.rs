@@ -9,13 +9,22 @@ use super::kernel::{CovarianceResult, Kernel, KernelResult};
 /// and `l` is the length scale
 ///
 /// # Examples
-/// ```no_run
+///
+/// ```rust
+/// use gprs::kernels::{RBF,Kernel};
 /// // create a 2-d RBF kernel
-/// let length_scale = vec![1.0, 2.0]
-/// let kern = RBF::new(&length_scale)?;
+/// let length_scale = vec![1.0, 2.0];
+/// let kern = RBF::<2>::new(&length_scale).unwrap();
 /// // estimate covariance between 2 points
 /// let (x, y) = (vec![1.8, 5.5], vec![2.2, 3.0]);
-/// let K = kern.call(&x, &y)?;
+/// let k = kern.call(&x, &y).unwrap();
+/// ```
+///
+/// Create a kernel using gamma directly:
+///
+/// ```rust
+/// use gprs::kernels::{RBF,Kernel};
+/// let kern = RBF::from_params([1.0, 2.0]);
 /// ```
 #[derive(Debug)]
 pub struct RBF<const DIMS: usize> {
@@ -90,5 +99,94 @@ impl<const DIMS: usize> Kernel<[f64; DIMS]> for RBF<DIMS> {
 
     fn from_params(params: [f64; DIMS]) -> Self {
         return RBF { gamma: params };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::kernels::{Kernel, RBF};
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_length() {
+        RBF::<1>::new(&vec![1.0, 1.0]).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_zero_lengthscale() {
+        RBF::<2>::new(&vec![1.0, 0.0]).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_neg_lengthscale() {
+        RBF::<2>::new(&vec![1.0, -1.0]).unwrap();
+    }
+
+    /// The covariance of a point to itself is 1.0
+    #[test]
+    fn test_1d_identity() {
+        let kern = RBF::<1>::new(&vec![1.0]).unwrap();
+
+        let (x, y) = (vec![1.0], vec![1.0]);
+        let k = kern.call(&x, &y).unwrap();
+
+        assert_eq!(k, 1.0);
+    }
+
+    /// The covariance function is commutative
+    #[test]
+    fn test_1d_symmetry() {
+        let kern = RBF::<1>::new(&vec![1.0]).unwrap();
+
+        let (x, y) = (vec![1.0], vec![2.0]);
+        let k1 = kern.call(&x, &y).unwrap();
+        let k2 = kern.call(&y, &x).unwrap();
+
+        assert_eq!(k1, k2);
+    }
+
+    #[test]
+    fn test_1d_correctness() {
+        let kern = RBF::<1>::new(&vec![0.5]).unwrap();
+        // gamma should be -0.5 / 0.25 = -2.0
+
+        let (x, y) = (vec![1.0], vec![3.0]);
+        let k = kern.call(&x, &y).unwrap();
+
+        assert_eq!(k, (-8.0 as f64).exp());
+    }
+
+    #[test]
+    fn test_2d_identity() {
+        let kern = RBF::<2>::new(&vec![1.0, 2.0]).unwrap();
+
+        let (x, y) = (vec![1.0, 1.0], vec![1.0, 1.0]);
+        let k = kern.call(&x, &y).unwrap();
+
+        assert_eq!(k, 1.0);
+    }
+
+    #[test]
+    fn test_2d_symmetry() {
+        let kern = RBF::<2>::new(&vec![1.0, 2.0]).unwrap();
+
+        let (x, y) = (vec![1.0, 1.0], vec![2.0, 2.0]);
+        let k1 = kern.call(&x, &y).unwrap();
+        let k2 = kern.call(&y, &x).unwrap();
+
+        assert_eq!(k1, k2);
+    }
+
+    #[test]
+    fn test_2d_correctness() {
+        let kern = RBF::<2>::new(&vec![0.5, 2.0]).unwrap();
+        // gamma = -0.5 / [0.25, 4.0] = [-2.0, -0.125]
+
+        let (x, y) = (vec![1.0, 1.0], vec![3.0, 3.0]);
+        let k = kern.call(&x, &y).unwrap();
+
+        assert_eq!(k, (-8.5 as f64).exp());
     }
 }
