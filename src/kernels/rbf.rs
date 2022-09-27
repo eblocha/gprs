@@ -1,6 +1,6 @@
 use nalgebra::{DMatrix, DVector};
 
-use super::{errors::MismatchedSizeError, kernel::Kernel};
+use super::{errors::IncompatibleShapeError, kernel::Kernel};
 
 /// Radial Basis Function kernel
 ///
@@ -32,7 +32,7 @@ use super::{errors::MismatchedSizeError, kernel::Kernel};
 /// ]);
 ///
 /// let k = kern.call(&x, &y).unwrap();
-/// assert_eq!(k.shape(), (3, 4))
+/// assert_eq!(k.shape(), (3, 4));
 /// ```
 ///
 /// Create a kernel using gamma directly:
@@ -68,12 +68,12 @@ impl Kernel<DVector<f64>> for RBF {
         &self,
         x: &DMatrix<f64>,
         y: &DMatrix<f64>,
-    ) -> Result<DMatrix<f64>, MismatchedSizeError> {
+    ) -> Result<DMatrix<f64>, IncompatibleShapeError> {
         let x_shape = x.shape();
         let y_shape = y.shape();
 
         if x_shape.1 != self.gamma.len() || y_shape.1 != self.gamma.len() {
-            return Err(MismatchedSizeError {
+            return Err(IncompatibleShapeError {
                 shapes: vec![x_shape, y_shape, self.gamma.shape()],
             });
         }

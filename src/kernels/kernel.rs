@@ -1,6 +1,6 @@
 use nalgebra::DMatrix;
 
-use super::errors::MismatchedSizeError;
+use super::errors::IncompatibleShapeError;
 
 pub trait Kernel<P> {
     /// Compute the covariance between sets of points
@@ -10,7 +10,7 @@ pub trait Kernel<P> {
         &self,
         x: &'x DMatrix<f64>,
         y: &'y DMatrix<f64>,
-    ) -> Result<DMatrix<f64>, MismatchedSizeError>;
+    ) -> Result<DMatrix<f64>, IncompatibleShapeError>;
     /// Get the kernel parameters
     fn get_params(&self) -> &P;
     /// Set the kernel parameters

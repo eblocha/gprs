@@ -5,6 +5,6 @@ pub enum InvalidKernelError {
 }
 
 #[derive(Debug)]
-pub struct MismatchedSizeError {
+pub struct IncompatibleShapeError {
     pub shapes: Vec<(usize, usize)>,
 }
