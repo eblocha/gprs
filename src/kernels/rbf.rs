@@ -37,9 +37,6 @@ pub struct RBF {
 
 impl RBF {
     /// Create a new kernel from a length scale. Length scales are squared.
-    ///
-    /// # Panics
-    /// Panics if any length scale == 0.0
     pub fn new(length_scale: DVector<f64>) -> Self {
         let gamma = Self::gamma(length_scale);
         RBF { gamma }
@@ -95,6 +92,16 @@ mod tests {
 
     fn create_points(x: Vec<f64>, y: Vec<f64>) -> (DVector<f64>, DVector<f64>) {
         (DVector::from_vec(x), DVector::from_vec(y))
+    }
+
+    /// Passing a zero lengthscale will produce NaN
+    #[test]
+    fn test_zero_lengthscale() {
+        let kern = create(vec![0.0]);
+        let (x, y) = create_points(vec![1.0], vec![1.0]);
+        let k = kern.call(&x, &y);
+
+        assert!(k.is_nan());
     }
 
     /// The covariance of a point to itself is 1.0

@@ -2,6 +2,9 @@ use ::nalgebra::DVector;
 
 pub trait Kernel<P> {
     /// Compute the covariance
+    ///
+    /// # Panics
+    /// May panic if `x` or `y` do not have the correct length
     fn call<'x, 'y>(&self, x: &'x DVector<f64>, y: &'y DVector<f64>) -> f64;
     /// Get the kernel parameters
     fn get_params(&self) -> &P;
