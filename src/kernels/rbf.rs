@@ -1,7 +1,5 @@
 use nalgebra::{Const, DMatrix, DVector, Dynamic, Matrix, SliceStorage};
 
-use crate::util::create_matrix_uninitialized;
-
 use super::{errors::IncompatibleShapeError, kernel::Kernel};
 
 /// Radial Basis Function kernel
@@ -99,11 +97,8 @@ impl Kernel<DVector<f64>> for RBF {
             });
         }
 
-        let mut value: DMatrix<f64>;
-
-        unsafe {
-            value = create_matrix_uninitialized::<f64>(x_shape.0, x_shape.0);
-        }
+        // initialize memory
+        let mut value = DMatrix::<f64>::zeros(x_shape.0, y_shape.0);
 
         for (i, x_slice) in x.row_iter().enumerate() {
             for (j, y_slice) in y.row_iter().enumerate() {
@@ -122,11 +117,7 @@ impl Kernel<DVector<f64>> for RBF {
             });
         }
 
-        let mut value: DMatrix<f64>;
-
-        unsafe {
-            value = create_matrix_uninitialized::<f64>(x_shape.0, x_shape.0);
-        }
+        let mut value = DMatrix::<f64>::zeros(x_shape.0, x_shape.0);
 
         for (i, x_slice) in x.row_iter().enumerate() {
             for j in i..x_shape.0 {
