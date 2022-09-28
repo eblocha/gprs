@@ -39,12 +39,12 @@ fn main() {
 
 ## Goals
 
-- Implement basic gaussian process regression with RBF
-- Allow use of trained and untrained mean function (prior)
-  - trained -> implements derivatives
-  - untrained -> simple function
-- Provide interface for computing derivatives w.r.t. kernel params
-- Learn multithreading to use when iterating over very large arrays
-- Add performance benchmarks
-- Implement L-BFGS to optimize kernels
-- Implement white noise, sum, product, and polynomial kernels
+- [ ] Implement basic gaussian process regression with RBF
+- [ ] Allow use of trained and untrained mean function (prior)
+  - [ ] trained -> implements derivatives
+  - [ ] untrained -> simple function
+- [ ] Provide interface for computing derivatives w.r.t. kernel params
+- [ ] Learn multithreading to use when iterating over very large arrays
+- [x] Add performance benchmarks
+- [ ] Implement L-BFGS to optimize kernels
+- [ ] Implement white noise, sum, product, and polynomial kernels
