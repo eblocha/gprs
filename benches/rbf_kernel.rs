@@ -10,7 +10,7 @@ const SZ: usize = 2000;
 fn criterion_benchmark(c: &mut Criterion) {
     let kern = RBF::new(DVector::from_vec(vec![1.0, 2.0]));
 
-    let x = create_random((SZ, 2));
+    let x = create_random((2, SZ));
     let mut raw = DMatrix::zeros(SZ, SZ);
 
     rayon::ThreadPoolBuilder::new()

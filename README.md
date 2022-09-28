@@ -17,13 +17,13 @@ fn main() {
     let kern = RBF::new(DVector::from_vec(vec![1.0, 2.0]));
 
     // estimate covariance between 2 sets of points
-    let x = DMatrix::from_vec(3, 2, vec![
+    let x = DMatrix::from_vec(2, 3, vec![
         1.8, 5.5,
         1.5, 4.5,
         2.3, 4.6
     ]);
 
-    let y = DMatrix::from_vec(4, 2, vec![
+    let y = DMatrix::from_vec(2, 4, vec![
         2.2, 3.0,
         1.8, 5.5,
         1.5, 4.5,

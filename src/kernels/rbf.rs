@@ -1,5 +1,5 @@
 use super::{errors::IncompatibleShapeError, kernel::Kernel};
-use nalgebra::{Const, DMatrix, DVector, Dynamic, Matrix, SliceStorage};
+use nalgebra::{DMatrix, DVector};
 use rayon::prelude::*;
 
 /// Radial Basis Function kernel
@@ -18,13 +18,13 @@ use rayon::prelude::*;
 /// // create a 2-d RBF kernel
 /// let kern = RBF::new(DVector::from_vec(vec![1.0, 2.0]));
 /// // estimate covariance between 2 sets of points
-/// let x = DMatrix::from_vec(3, 2, vec![
+/// let x = DMatrix::from_vec(2, 3, vec![
 ///     1.8, 5.5,
 ///     1.5, 4.5,
 ///     2.3, 4.6
 /// ]);
 ///
-/// let y = DMatrix::from_vec(4, 2, vec![
+/// let y = DMatrix::from_vec(2, 4, vec![
 ///     2.2, 3.0,
 ///     1.8, 5.5,
 ///     1.5, 4.5,
@@ -48,10 +48,6 @@ pub struct RBF {
     gamma: DVector<f64>,
 }
 
-/// Matrix slice representing a single point in the input space
-type Slice<'a> =
-    Matrix<f64, Const<1>, Dynamic, SliceStorage<'a, f64, Const<1>, Dynamic, Const<1>, Dynamic>>;
-
 impl RBF {
     /// Create a new kernel from a length scale. Length scales are squared.
     pub fn new(length_scale: DVector<f64>) -> Self {
@@ -69,7 +65,7 @@ impl RBF {
     /// Compute the covariance between 2 points
     ///
     /// Unsafe to call if the dimensions have not been checked
-    unsafe fn call_slice(&self, x_slice: &Slice, y_slice: &Slice) -> f64 {
+    unsafe fn call_slice_unchecked(&self, x_slice: &[f64], y_slice: &[f64]) -> f64 {
         self.gamma
             .iter()
             .enumerate()
@@ -93,18 +89,21 @@ impl Kernel<DVector<f64>> for RBF {
         let y_shape = y.shape();
         let into_shape = into.shape();
 
-        if x_shape.1 != self.gamma.len()
-            || y_shape.1 != self.gamma.len()
-            || into_shape != (x_shape.0, y_shape.0)
+        if x_shape.0 != self.gamma.len()
+            || y_shape.0 != self.gamma.len()
+            || into_shape != (x_shape.1, y_shape.1)
         {
             return Err(IncompatibleShapeError {
                 shapes: vec![x_shape, y_shape, self.gamma.shape(), into_shape],
             });
         }
 
-        for (i, x_slice) in x.row_iter().enumerate() {
-            for (j, y_slice) in y.row_iter().enumerate() {
-                unsafe { *into.get_unchecked_mut((i, j)) = self.call_slice(&x_slice, &y_slice) };
+        for (i, x_slice) in x.column_iter().enumerate() {
+            for (j, y_slice) in y.column_iter().enumerate() {
+                unsafe {
+                    *into.get_unchecked_mut((i, j)) =
+                        self.call_slice_unchecked(&x_slice.as_slice(), &y_slice.as_slice())
+                };
             }
         }
 
@@ -119,19 +118,22 @@ impl Kernel<DVector<f64>> for RBF {
         let x_shape = x.shape();
         let y_shape = y.shape();
 
-        if x_shape.1 != self.gamma.len() || y_shape.1 != self.gamma.len() {
+        if x_shape.0 != self.gamma.len() || y_shape.0 != self.gamma.len() {
             return Err(IncompatibleShapeError {
                 shapes: vec![x_shape, y_shape, self.gamma.shape()],
             });
         }
 
-        let s: Vec<f64> = (0..x_shape.0)
-            .into_par_iter()
-            .flat_map(move |i| (0..y_shape.0).into_par_iter().map(move |j| (i, j)))
-            .map(|(i, j)| unsafe { self.call_slice(&x.row(i), &y.row(j)) })
+        let x_sl = x.as_slice();
+        let y_sl = y.as_slice();
+
+        let s: Vec<f64> = x_sl
+            .par_chunks(x_shape.0)
+            .flat_map(move |x_sl| y_sl.par_chunks(y_shape.0).map(move |y_sl| (x_sl, y_sl)))
+            .map(move |(x_slice, y_slice)| unsafe { self.call_slice_unchecked(x_slice, y_slice) })
             .collect();
 
-        return Ok(DMatrix::from_vec(x_shape.0, y_shape.0, s));
+        return Ok(DMatrix::from_vec(x_shape.1, y_shape.1, s));
     }
 
     fn call_symmetric_into(
@@ -142,17 +144,18 @@ impl Kernel<DVector<f64>> for RBF {
         let x_shape = x.shape();
         let into_shape = into.shape();
 
-        if x_shape.1 != self.gamma.len() || into_shape != (x_shape.0, x_shape.0) {
+        if x_shape.0 != self.gamma.len() || into_shape != (x_shape.1, x_shape.1) {
             return Err(IncompatibleShapeError {
                 shapes: vec![x_shape, self.gamma.shape(), into_shape],
             });
         }
 
-        for (i, x_slice) in x.row_iter().enumerate() {
-            for j in i..x_shape.0 {
-                let y_slice = x.row(j);
+        for (i, x_slice) in x.column_iter().enumerate() {
+            for j in i..x_shape.1 {
+                let y_slice = x.column(j);
 
-                let cell = unsafe { self.call_slice(&x_slice, &y_slice) };
+                let cell =
+                    unsafe { self.call_slice_unchecked(&x_slice.as_slice(), &y_slice.as_slice()) };
 
                 unsafe { *into.get_unchecked_mut((i, j)) = cell };
 
@@ -168,7 +171,7 @@ impl Kernel<DVector<f64>> for RBF {
     fn call_symmetric(&self, x: &DMatrix<f64>) -> Result<DMatrix<f64>, IncompatibleShapeError> {
         let x_shape = x.shape();
 
-        let mut value = DMatrix::<f64>::zeros(x_shape.0, x_shape.0);
+        let mut value = DMatrix::<f64>::zeros(x_shape.1, x_shape.1);
 
         self.call_symmetric_into(x, &mut value)?;
 
@@ -204,8 +207,8 @@ mod tests {
     fn test_mismatched() {
         let kern = create(vec![1.0]);
 
-        let x = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
-        let y = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
+        let x = DMatrix::from_vec(2, 1, vec![1.0, 1.0]);
+        let y = DMatrix::from_vec(2, 1, vec![1.0, 1.0]);
         kern.call(&x, &y).unwrap();
     }
 
@@ -262,8 +265,8 @@ mod tests {
     fn test_2d_identity() {
         let kern = create(vec![1.0, 2.0]);
 
-        let x = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
-        let y = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
+        let x = DMatrix::from_vec(2, 1, vec![1.0, 1.0]);
+        let y = DMatrix::from_vec(2, 1, vec![1.0, 1.0]);
         let k = kern.call(&x, &y).unwrap();
 
         assert_eq!(k[0], 1.0);
@@ -273,8 +276,8 @@ mod tests {
     fn test_2d_symmetry() {
         let kern = create(vec![1.0, 2.0]);
 
-        let x = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
-        let y = DMatrix::from_vec(1, 2, vec![2.0, 2.0]);
+        let x = DMatrix::from_vec(2, 1, vec![1.0, 1.0]);
+        let y = DMatrix::from_vec(2, 1, vec![2.0, 2.0]);
         let k1 = kern.call(&x, &y).unwrap();
         let k2 = kern.call(&y, &x).unwrap();
 
@@ -286,8 +289,8 @@ mod tests {
         let kern = create(vec![0.5, 2.0]);
         // gamma = -0.5 / [0.25, 4.0] = [-2.0, -0.125]
 
-        let x = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
-        let y = DMatrix::from_vec(1, 2, vec![3.0, 4.0]);
+        let x = DMatrix::from_vec(2, 1, vec![1.0, 1.0]);
+        let y = DMatrix::from_vec(2, 1, vec![3.0, 4.0]);
         let k = kern.call(&x, &y).unwrap();
 
         assert_eq!(k[0], (-9.125 as f64).exp());
