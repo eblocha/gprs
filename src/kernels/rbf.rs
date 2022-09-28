@@ -1,6 +1,6 @@
-use nalgebra::{Const, DMatrix, DVector, Dynamic, Matrix, SliceStorage};
-
 use super::{errors::IncompatibleShapeError, kernel::Kernel};
+use nalgebra::{Const, DMatrix, DVector, Dynamic, Matrix, SliceStorage};
+use rayon::prelude::*;
 
 /// Radial Basis Function kernel
 ///
@@ -119,12 +119,19 @@ impl Kernel<DVector<f64>> for RBF {
         let x_shape = x.shape();
         let y_shape = y.shape();
 
-        // initialize memory
-        let mut value = DMatrix::<f64>::zeros(x_shape.0, y_shape.0);
+        if x_shape.1 != self.gamma.len() || y_shape.1 != self.gamma.len() {
+            return Err(IncompatibleShapeError {
+                shapes: vec![x_shape, y_shape, self.gamma.shape()],
+            });
+        }
 
-        self.call_into(x, y, &mut value)?;
+        let s: Vec<f64> = (0..x_shape.0)
+            .into_par_iter()
+            .flat_map(move |i| (0..y_shape.0).into_par_iter().map(move |j| (i, j)))
+            .map(|(i, j)| unsafe { self.call_slice(&x.row(i), &y.row(j)) })
+            .collect();
 
-        return Ok(value);
+        return Ok(DMatrix::from_vec(x_shape.0, y_shape.0, s));
     }
 
     fn call_symmetric_into(
