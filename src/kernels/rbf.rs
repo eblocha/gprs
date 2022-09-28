@@ -83,6 +83,34 @@ impl RBF {
 }
 
 impl Kernel<DVector<f64>> for RBF {
+    fn call_into<'x, 'y>(
+        &self,
+        x: &'x DMatrix<f64>,
+        y: &'y DMatrix<f64>,
+        into: &mut DMatrix<f64>,
+    ) -> Result<(), IncompatibleShapeError> {
+        let x_shape = x.shape();
+        let y_shape = y.shape();
+        let into_shape = into.shape();
+
+        if x_shape.1 != self.gamma.len()
+            || y_shape.1 != self.gamma.len()
+            || into_shape != (x_shape.0, y_shape.0)
+        {
+            return Err(IncompatibleShapeError {
+                shapes: vec![x_shape, y_shape, self.gamma.shape(), into_shape],
+            });
+        }
+
+        for (i, x_slice) in x.row_iter().enumerate() {
+            for (j, y_slice) in y.row_iter().enumerate() {
+                unsafe { *into.get_unchecked_mut((i, j)) = self.call_slice(&x_slice, &y_slice) };
+            }
+        }
+
+        return Ok(());
+    }
+
     fn call(
         &self,
         x: &DMatrix<f64>,
@@ -91,33 +119,27 @@ impl Kernel<DVector<f64>> for RBF {
         let x_shape = x.shape();
         let y_shape = y.shape();
 
-        if x_shape.1 != self.gamma.len() || y_shape.1 != self.gamma.len() {
-            return Err(IncompatibleShapeError {
-                shapes: vec![x_shape, y_shape, self.gamma.shape()],
-            });
-        }
-
         // initialize memory
         let mut value = DMatrix::<f64>::zeros(x_shape.0, y_shape.0);
 
-        for (i, x_slice) in x.row_iter().enumerate() {
-            for (j, y_slice) in y.row_iter().enumerate() {
-                unsafe { *value.get_unchecked_mut((i, j)) = self.call_slice(&x_slice, &y_slice) };
-            }
-        }
+        self.call_into(x, y, &mut value)?;
 
         return Ok(value);
     }
 
-    fn call_symmetric(&self, x: &DMatrix<f64>) -> Result<DMatrix<f64>, IncompatibleShapeError> {
+    fn call_symmetric_into(
+        &self,
+        x: &DMatrix<f64>,
+        into: &mut DMatrix<f64>,
+    ) -> Result<(), IncompatibleShapeError> {
         let x_shape = x.shape();
-        if x_shape.1 != self.gamma.len() {
+        let into_shape = into.shape();
+
+        if x_shape.1 != self.gamma.len() || into_shape != (x_shape.0, x_shape.0) {
             return Err(IncompatibleShapeError {
-                shapes: vec![x_shape, self.gamma.shape()],
+                shapes: vec![x_shape, self.gamma.shape(), into_shape],
             });
         }
-
-        let mut value = DMatrix::<f64>::zeros(x_shape.0, x_shape.0);
 
         for (i, x_slice) in x.row_iter().enumerate() {
             for j in i..x_shape.0 {
@@ -125,13 +147,23 @@ impl Kernel<DVector<f64>> for RBF {
 
                 let cell = unsafe { self.call_slice(&x_slice, &y_slice) };
 
-                unsafe { *value.get_unchecked_mut((i, j)) = cell };
+                unsafe { *into.get_unchecked_mut((i, j)) = cell };
 
                 if i != j {
-                    unsafe { *value.get_unchecked_mut((j, i)) = cell };
+                    unsafe { *into.get_unchecked_mut((j, i)) = cell };
                 }
             }
         }
+
+        return Ok(());
+    }
+
+    fn call_symmetric(&self, x: &DMatrix<f64>) -> Result<DMatrix<f64>, IncompatibleShapeError> {
+        let x_shape = x.shape();
+
+        let mut value = DMatrix::<f64>::zeros(x_shape.0, x_shape.0);
+
+        self.call_symmetric_into(x, &mut value)?;
 
         return Ok(value);
     }
