@@ -87,7 +87,7 @@ impl RBF {
 }
 
 impl Kernel<Vec<f64>> for RBF {
-    fn call_into<'x, 'y>(
+    fn call_inplace<'x, 'y>(
         &self,
         x: &'x DMatrix<f64>,
         y: &'y DMatrix<f64>,
@@ -144,7 +144,7 @@ impl Kernel<Vec<f64>> for RBF {
         let y_shape = y.shape();
         let mut value = DMatrix::<f64>::zeros(x_shape.1, y_shape.1);
 
-        self.call_into(x, y, &mut value)?;
+        self.call_inplace(x, y, &mut value)?;
 
         return Ok(value);
     }

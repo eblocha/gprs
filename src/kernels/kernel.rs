@@ -14,7 +14,7 @@ pub trait Kernel<P> {
     /// Compute the covariance and store the result in mutable matrix `into`
     ///
     /// This allows for re-use of memory
-    fn call_into<'x, 'y>(
+    fn call_inplace<'x, 'y>(
         &self,
         x: &'x DMatrix<f64>,
         y: &'y DMatrix<f64>,

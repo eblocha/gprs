@@ -37,7 +37,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             let x = create_random((2, *n));
 
             b.iter(|| {
-                kern.call_into(black_box(&x), black_box(&x), black_box(&mut raw))
+                kern.call_inplace(black_box(&x), black_box(&x), black_box(&mut raw))
                     .unwrap()
             })
         });
