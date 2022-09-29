@@ -24,13 +24,6 @@ fn criterion_benchmark(c: &mut Criterion) {
                 .unwrap()
         })
     });
-
-    c.bench_function("random symmetric", |b| {
-        b.iter(|| {
-            kern.call_symmetric_into(black_box(&x), black_box(&mut raw))
-                .unwrap()
-        })
-    });
 }
 
 criterion_group!(benches, criterion_benchmark);

@@ -18,7 +18,7 @@ use rayon::prelude::*;
 /// use nalgebra::{DVector,DMatrix};
 ///
 /// // create a 2-d RBF kernel
-/// let kern = RBF::new(DVector::from_vec(vec![1.0, 2.0]));
+/// let kern = RBF::new(vec![1.0, 2.0].iter());
 /// // estimate covariance between 2 sets of points
 /// let x = DMatrix::from_vec(2, 3, vec![
 ///     1.8, 5.5,
@@ -41,9 +41,10 @@ use rayon::prelude::*;
 ///
 /// ```rust
 /// use gprs::kernels::{RBF,Kernel};
+/// use gprs::parameterized::Parameterized;
 /// use nalgebra::DVector;
 ///
-/// let kern = RBF::from_params(DVector::from_vec(vec![-0.5, -0.125]));
+/// let kern = RBF::from_params(vec![-0.5, -0.125]);
 /// ```
 #[derive(Debug)]
 pub struct RBF {
@@ -110,8 +111,8 @@ impl Kernel<Vec<f64>> for RBF {
             .into_par_iter()
             .enumerate()
             .for_each(|(i, v)| {
-                let xi = i % x_shape.1;
-                let yi = i % y_shape.1;
+                let xi = i / y_shape.1;
+                let yi = i - (xi * y_shape.1);
                 unsafe {
                     *v =
                         self.call_slice_unchecked(x.column(xi).as_slice(), y.column(yi).as_slice());
@@ -131,48 +132,6 @@ impl Kernel<Vec<f64>> for RBF {
         let mut value = DMatrix::<f64>::zeros(x_shape.1, y_shape.1);
 
         self.call_into(x, y, &mut value)?;
-
-        return Ok(value);
-    }
-
-    fn call_symmetric_into(
-        &self,
-        x: &DMatrix<f64>,
-        into: &mut DMatrix<f64>,
-    ) -> Result<(), IncompatibleShapeError> {
-        let x_shape = x.shape();
-        let into_shape = into.shape();
-
-        if x_shape.0 != self.gamma.len() || into_shape != (x_shape.1, x_shape.1) {
-            return Err(IncompatibleShapeError {
-                shapes: vec![x_shape, (1, self.gamma.len()), into_shape],
-            });
-        }
-
-        for (i, x_slice) in x.column_iter().enumerate() {
-            for j in i..x_shape.1 {
-                let y_slice = x.column(j);
-
-                let cell =
-                    unsafe { self.call_slice_unchecked(&x_slice.as_slice(), &y_slice.as_slice()) };
-
-                unsafe { *into.get_unchecked_mut((i, j)) = cell };
-
-                if i != j {
-                    unsafe { *into.get_unchecked_mut((j, i)) = cell };
-                }
-            }
-        }
-
-        return Ok(());
-    }
-
-    fn call_symmetric(&self, x: &DMatrix<f64>) -> Result<DMatrix<f64>, IncompatibleShapeError> {
-        let x_shape = x.shape();
-
-        let mut value = DMatrix::<f64>::zeros(x_shape.1, x_shape.1);
-
-        self.call_symmetric_into(x, &mut value)?;
 
         return Ok(value);
     }
