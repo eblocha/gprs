@@ -98,14 +98,17 @@ impl Kernel<DVector<f64>> for RBF {
             });
         }
 
-        for (i, x_slice) in x.column_iter().enumerate() {
-            for (j, y_slice) in y.column_iter().enumerate() {
+        into.as_mut_slice()
+            .into_par_iter()
+            .enumerate()
+            .for_each(|(i, v)| {
+                let xi = i % x_shape.1;
+                let yi = i % y_shape.1;
                 unsafe {
-                    *into.get_unchecked_mut((i, j)) =
-                        self.call_slice_unchecked(&x_slice.as_slice(), &y_slice.as_slice())
-                };
-            }
-        }
+                    *v =
+                        self.call_slice_unchecked(x.column(xi).as_slice(), y.column(yi).as_slice());
+                }
+            });
 
         return Ok(());
     }

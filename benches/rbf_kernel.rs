@@ -19,7 +19,10 @@ fn criterion_benchmark(c: &mut Criterion) {
         .unwrap();
 
     c.bench_function("random mismatched", |b| {
-        b.iter(|| kern.call(black_box(&x), black_box(&x)).unwrap())
+        b.iter(|| {
+            kern.call_into(black_box(&x), black_box(&x), black_box(&mut raw))
+                .unwrap()
+        })
     });
 
     c.bench_function("random symmetric", |b| {
