@@ -1,6 +1,9 @@
 use crate::parameterized::Parameterized;
 
-use super::{errors::IncompatibleShapeError, kernel::Kernel};
+use super::{
+    errors::IncompatibleShapeError,
+    kernel::{Kernel, TriangleSide},
+};
 use nalgebra::DMatrix;
 use rayon::prelude::*;
 
@@ -18,7 +21,7 @@ use rayon::prelude::*;
 /// use nalgebra::{DVector,DMatrix};
 ///
 /// // create a 2-d RBF kernel
-/// let kern = RBF::new(vec![1.0, 2.0].iter());
+/// let kern = RBF::new(vec![1.0, 2.0].iter(), 1.0);
 /// // estimate covariance between 2 sets of points
 /// let x = DMatrix::from_vec(2, 3, vec![
 ///     1.8, 5.5,
@@ -44,21 +47,25 @@ use rayon::prelude::*;
 /// use gprs::parameterized::Parameterized;
 /// use nalgebra::DVector;
 ///
-/// let kern = RBF::from_params(vec![-0.5, -0.125]);
+/// let kern = RBF::from_params((&vec![-0.5, -0.125], 1.0));
 /// ```
 #[derive(Debug)]
 pub struct RBF {
     gamma: Vec<f64>,
+    amplitude: f64,
 }
 
 impl RBF {
     /// Create a new kernel from a length scale. Length scales are squared.
-    pub fn new<'a, I>(length_scale: I) -> Self
+    pub fn new<'a, I>(length_scale: I, sigma: f64) -> Self
     where
         I: Iterator<Item = &'a f64>,
     {
         let gamma = Self::gamma(length_scale);
-        RBF { gamma }
+        RBF {
+            gamma,
+            amplitude: sigma * sigma,
+        }
     }
 
     /// Compute the gamma property from a length scale vec
@@ -73,7 +80,8 @@ impl RBF {
 
     /// Compute the covariance between 2 points
     fn call_point(&self, x_point: &[f64], y_point: &[f64]) -> f64 {
-        self.gamma
+        let unscaled = self
+            .gamma
             .iter()
             .zip(x_point)
             .zip(y_point)
@@ -82,11 +90,92 @@ impl RBF {
                 diff * diff * g
             })
             .sum::<f64>()
-            .exp()
+            .exp();
+
+        unscaled * self.amplitude
+    }
+
+    fn check_shapes(
+        &self,
+        x_shape: (usize, usize),
+        y_shape: (usize, usize),
+        into_shape: (usize, usize),
+    ) -> Result<(), IncompatibleShapeError> {
+        if x_shape.0 != self.gamma.len()
+            || y_shape.0 != self.gamma.len()
+            || into_shape != (x_shape.1, y_shape.1)
+        {
+            return Err(IncompatibleShapeError {
+                shapes: vec![x_shape, y_shape, (1, self.gamma.len()), into_shape],
+            });
+        }
+
+        return Ok(());
+    }
+
+    /// Given an index into a flattened 2-d matrix, find the 2-d coordinate of that index
+    ///
+    /// `nmajor` is the length of the major axis of the matrix (i.e. ncols for column-major, nrows for row-major)
+    ///
+    /// The returned index is in (minor, major) axis order
+    #[inline(always)]
+    fn index_to_2d(index: usize, nmajor: usize) -> (usize, usize) {
+        let i = index / nmajor;
+        let j = index - (i * nmajor);
+        (i, j)
+    }
+
+    /// Given a major axis index and the number of dims,
+    /// return the start and end slice positions to slice along the minor axis at the index
+    #[inline(always)]
+    fn slice_indices(index: usize, dims: usize) -> (usize, usize) {
+        let xs = index * dims;
+        let xe = xs + dims;
+        (xs, xe)
+    }
+
+    fn call_triangular_inplace<'x>(
+        &self,
+        x: &'x DMatrix<f64>,
+        side: TriangleSide,
+        into: &mut DMatrix<f64>,
+    ) -> Result<(), IncompatibleShapeError> {
+        let x_shape = x.shape();
+        let into_shape = into.shape();
+
+        self.check_shapes(x_shape, x_shape, into_shape)?;
+
+        let dims = x_shape.0;
+        let x_sl = x.as_slice();
+
+        into.as_mut_slice()
+            .into_par_iter()
+            .enumerate()
+            .map(|(index, v)| {
+                let (i, j) = Self::index_to_2d(index, x_shape.1);
+                (i, j, v)
+            })
+            .filter(|(i, j, _v)| match side {
+                TriangleSide::LOWER => i <= j,
+                TriangleSide::UPPER => i >= j,
+            })
+            .for_each(|(i, j, v)| {
+                let (xs, xe) = Self::slice_indices(i, dims);
+                let (ys, ye) = Self::slice_indices(j, dims);
+
+                // SAFETY: the indices are valid because we checked them at the beginning of the function
+                unsafe {
+                    let x_point = &x_sl.get_unchecked(xs..xe);
+                    let y_point = &x_sl.get_unchecked(ys..ye);
+                    *v = self.call_point(x_point, y_point);
+                }
+            });
+
+        return Ok(());
     }
 }
 
-impl Kernel<Vec<f64>> for RBF {
+impl Kernel for RBF {
     fn call_inplace<'x, 'y>(
         &self,
         x: &'x DMatrix<f64>,
@@ -97,14 +186,7 @@ impl Kernel<Vec<f64>> for RBF {
         let y_shape = y.shape();
         let into_shape = into.shape();
 
-        if x_shape.0 != self.gamma.len()
-            || y_shape.0 != self.gamma.len()
-            || into_shape != (x_shape.1, y_shape.1)
-        {
-            return Err(IncompatibleShapeError {
-                shapes: vec![x_shape, y_shape, (1, self.gamma.len()), into_shape],
-            });
-        }
+        self.check_shapes(x_shape, y_shape, into_shape)?;
 
         let dims = x_shape.0;
         let x_sl = x.as_slice();
@@ -113,16 +195,10 @@ impl Kernel<Vec<f64>> for RBF {
         into.as_mut_slice()
             .into_par_iter()
             .enumerate()
-            .for_each(|(i, v)| {
-                let xi = i / y_shape.1;
-                let yi = i - (xi * y_shape.1);
-
-                // start and end slice indices
-                let xs = xi * dims;
-                let xe = xs + dims;
-
-                let ys = yi * dims;
-                let ye = ys + dims;
+            .for_each(|(index, v)| {
+                let (i, j) = Self::index_to_2d(index, y_shape.1);
+                let (xs, xe) = Self::slice_indices(i, dims);
+                let (ys, ye) = Self::slice_indices(j, dims);
 
                 // SAFETY: the indices are valid because we checked them at the beginning of the function
                 unsafe {
@@ -148,19 +224,41 @@ impl Kernel<Vec<f64>> for RBF {
 
         return Ok(value);
     }
+
+    fn call_triangular<'x>(
+        &self,
+        x: &'x DMatrix<f64>,
+        side: TriangleSide,
+    ) -> Result<DMatrix<f64>, IncompatibleShapeError> {
+        let x_shape = x.shape();
+        let mut value = DMatrix::<f64>::zeros(x_shape.1, x_shape.1);
+
+        self.call_triangular_inplace(x, side, &mut value)?;
+
+        return Ok(value);
+    }
 }
 
-impl Parameterized<Vec<f64>> for RBF {
-    fn get_params(&self) -> &Vec<f64> {
-        &self.gamma
+/// Clone a vector with cloneable elements
+fn clone_vec<T: Clone>(vec: &Vec<T>) -> Vec<T> {
+    vec.iter().map(|v| v.clone()).collect()
+}
+
+impl<'a> Parameterized<'a, (&'a Vec<f64>, f64)> for RBF {
+    fn get_params(&'a self) -> (&'a Vec<f64>, f64) {
+        (&self.gamma, self.amplitude)
     }
 
-    fn set_params(&mut self, params: Vec<f64>) {
-        self.gamma = params;
+    fn set_params<'b>(&'a mut self, params: (&'b Vec<f64>, f64)) {
+        self.gamma = clone_vec(params.0);
+        self.amplitude = params.1
     }
 
-    fn from_params(params: Vec<f64>) -> Self {
-        return RBF { gamma: params };
+    fn from_params<'b>(params: (&'b Vec<f64>, f64)) -> Self {
+        return RBF {
+            gamma: clone_vec(params.0),
+            amplitude: params.1,
+        };
     }
 }
 
@@ -170,7 +268,7 @@ mod tests {
     use nalgebra::DMatrix;
 
     fn create(v: Vec<f64>) -> RBF {
-        RBF::new(v.iter())
+        RBF::new(v.iter(), 1.0)
     }
 
     /// Passing invalid data will return an error

@@ -7,7 +7,7 @@ fn create_random(shape: (usize, usize)) -> DMatrix<f64> {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let kern = RBF::new(vec![1.0, 2.0].iter());
+    let kern = RBF::new(vec![1.0, 2.0].iter(), 1.0);
 
     rayon::ThreadPoolBuilder::new()
         .num_threads(12)
