@@ -72,14 +72,13 @@ impl RBF {
     }
 
     /// Compute the covariance between 2 points
-    ///
-    /// Unsafe to call if the dimensions of the x and y slices is not the same as the kernel length scale
-    unsafe fn call_slice_unchecked(&self, x_slice: &[f64], y_slice: &[f64]) -> f64 {
+    fn call_point(&self, x_point: &[f64], y_point: &[f64]) -> f64 {
         self.gamma
             .iter()
-            .enumerate()
-            .map(|(index, g)| {
-                let diff = x_slice.get_unchecked(index) - y_slice.get_unchecked(index);
+            .zip(x_point)
+            .zip(y_point)
+            .map(|((g, x), y)| {
+                let diff = x - y;
                 diff * diff * g
             })
             .sum::<f64>()
@@ -107,15 +106,29 @@ impl Kernel<Vec<f64>> for RBF {
             });
         }
 
+        let dims = x_shape.0;
+        let x_sl = x.as_slice();
+        let y_sl = y.as_slice();
+
         into.as_mut_slice()
             .into_par_iter()
             .enumerate()
             .for_each(|(i, v)| {
                 let xi = i / y_shape.1;
                 let yi = i - (xi * y_shape.1);
+
+                // start and end slice indices
+                let xs = xi * dims;
+                let xe = xs + dims;
+
+                let ys = yi * dims;
+                let ye = ys + dims;
+
+                // SAFETY: the indices are valid because we checked them at the beginning of the function
                 unsafe {
-                    *v =
-                        self.call_slice_unchecked(x.column(xi).as_slice(), y.column(yi).as_slice());
+                    let x_point = &x_sl.get_unchecked(xs..xe);
+                    let y_point = &y_sl.get_unchecked(ys..ye);
+                    *v = self.call_point(x_point, y_point);
                 }
             });
 
