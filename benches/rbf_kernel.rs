@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use gprs::kernels::{Kernel, RBF};
-use nalgebra::{DMatrix, DVector};
+use nalgebra::DMatrix;
 
 fn create_random(shape: (usize, usize)) -> DMatrix<f64> {
     DMatrix::<f64>::new_random(shape.0, shape.1)
@@ -8,7 +8,7 @@ fn create_random(shape: (usize, usize)) -> DMatrix<f64> {
 const SZ: usize = 2000;
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let kern = RBF::new(DVector::from_vec(vec![1.0, 2.0]));
+    let kern = RBF::new(vec![1.0, 2.0].iter());
 
     let x = create_random((2, SZ));
     let mut raw = DMatrix::zeros(SZ, SZ);

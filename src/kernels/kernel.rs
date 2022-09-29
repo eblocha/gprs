@@ -32,10 +32,4 @@ pub trait Kernel<P> {
         x: &'x DMatrix<f64>,
         into: &mut DMatrix<f64>,
     ) -> Result<(), IncompatibleShapeError>;
-    /// Get the kernel parameters
-    fn get_params(&self) -> &P;
-    /// Set the kernel parameters
-    fn set_params(&mut self, params: P);
-    /// Create a new kernel from parameters
-    fn from_params(params: P) -> Self;
 }

@@ -1,5 +1,7 @@
+use crate::parameterized::Parameterized;
+
 use super::{errors::IncompatibleShapeError, kernel::Kernel};
-use nalgebra::{DMatrix, DVector};
+use nalgebra::DMatrix;
 use rayon::prelude::*;
 
 /// Radial Basis Function kernel
@@ -45,12 +47,15 @@ use rayon::prelude::*;
 /// ```
 #[derive(Debug)]
 pub struct RBF {
-    gamma: DVector<f64>,
+    gamma: Vec<f64>,
 }
 
 impl RBF {
     /// Create a new kernel from a length scale. Length scales are squared.
-    pub fn new(length_scale: DVector<f64>) -> Self {
+    pub fn new<'a, I>(length_scale: I) -> Self
+    where
+        I: Iterator<Item = &'a f64>,
+    {
         let gamma = Self::gamma(length_scale);
         RBF { gamma }
     }
@@ -58,13 +63,16 @@ impl RBF {
     /// Compute the gamma property from a length scale vec
     ///
     /// This speeds up covariance computation by pre-computing `-1 / (2 * l^2)`
-    fn gamma(length_scale: DVector<f64>) -> DVector<f64> {
-        return length_scale.map(|v| -0.5 / (v * v));
+    fn gamma<'a, I>(length_scale: I) -> Vec<f64>
+    where
+        I: Iterator<Item = &'a f64>,
+    {
+        length_scale.map(|v| -0.5 / (v * v)).collect()
     }
 
     /// Compute the covariance between 2 points
     ///
-    /// Unsafe to call if the dimensions have not been checked
+    /// Unsafe to call if the dimensions of the x and y slices is not the same as the kernel length scale
     unsafe fn call_slice_unchecked(&self, x_slice: &[f64], y_slice: &[f64]) -> f64 {
         self.gamma
             .iter()
@@ -78,7 +86,7 @@ impl RBF {
     }
 }
 
-impl Kernel<DVector<f64>> for RBF {
+impl Kernel<Vec<f64>> for RBF {
     fn call_into<'x, 'y>(
         &self,
         x: &'x DMatrix<f64>,
@@ -94,7 +102,7 @@ impl Kernel<DVector<f64>> for RBF {
             || into_shape != (x_shape.1, y_shape.1)
         {
             return Err(IncompatibleShapeError {
-                shapes: vec![x_shape, y_shape, self.gamma.shape(), into_shape],
+                shapes: vec![x_shape, y_shape, (1, self.gamma.len()), into_shape],
             });
         }
 
@@ -120,23 +128,11 @@ impl Kernel<DVector<f64>> for RBF {
     ) -> Result<DMatrix<f64>, IncompatibleShapeError> {
         let x_shape = x.shape();
         let y_shape = y.shape();
+        let mut value = DMatrix::<f64>::zeros(x_shape.1, y_shape.1);
 
-        if x_shape.0 != self.gamma.len() || y_shape.0 != self.gamma.len() {
-            return Err(IncompatibleShapeError {
-                shapes: vec![x_shape, y_shape, self.gamma.shape()],
-            });
-        }
+        self.call_into(x, y, &mut value)?;
 
-        let x_sl = x.as_slice();
-        let y_sl = y.as_slice();
-
-        let s: Vec<f64> = x_sl
-            .par_chunks(x_shape.0)
-            .flat_map(move |x_sl| y_sl.par_chunks(y_shape.0).map(move |y_sl| (x_sl, y_sl)))
-            .map(move |(x_slice, y_slice)| unsafe { self.call_slice_unchecked(x_slice, y_slice) })
-            .collect();
-
-        return Ok(DMatrix::from_vec(x_shape.1, y_shape.1, s));
+        return Ok(value);
     }
 
     fn call_symmetric_into(
@@ -149,7 +145,7 @@ impl Kernel<DVector<f64>> for RBF {
 
         if x_shape.0 != self.gamma.len() || into_shape != (x_shape.1, x_shape.1) {
             return Err(IncompatibleShapeError {
-                shapes: vec![x_shape, self.gamma.shape(), into_shape],
+                shapes: vec![x_shape, (1, self.gamma.len()), into_shape],
             });
         }
 
@@ -180,16 +176,18 @@ impl Kernel<DVector<f64>> for RBF {
 
         return Ok(value);
     }
+}
 
-    fn get_params(&self) -> &DVector<f64> {
+impl Parameterized<Vec<f64>> for RBF {
+    fn get_params(&self) -> &Vec<f64> {
         &self.gamma
     }
 
-    fn set_params(&mut self, params: DVector<f64>) {
+    fn set_params(&mut self, params: Vec<f64>) {
         self.gamma = params;
     }
 
-    fn from_params(params: DVector<f64>) -> Self {
+    fn from_params(params: Vec<f64>) -> Self {
         return RBF { gamma: params };
     }
 }
@@ -197,11 +195,10 @@ impl Kernel<DVector<f64>> for RBF {
 #[cfg(test)]
 mod tests {
     use crate::kernels::{Kernel, RBF};
-    use nalgebra::{DMatrix, DVector};
+    use nalgebra::DMatrix;
 
     fn create(v: Vec<f64>) -> RBF {
-        let length_scale = DVector::from_vec(v);
-        RBF::new(length_scale)
+        RBF::new(v.iter())
     }
 
     /// Passing invalid data will return an error
