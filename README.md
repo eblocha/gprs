@@ -14,7 +14,7 @@ use nalgebra::{DVector,DMatrix};
 
 fn main() {
     // create a 2-d anisotropic RBF kernel with length scales of 1.0 and 2.0
-    let kern = RBF::new(DVector::from_vec(vec![1.0, 2.0]));
+    let kern = RBF::new(vec![1.0, 2.0].iter());
 
     // estimate covariance between 2 sets of points
     let x = DMatrix::from_vec(2, 3, vec![
@@ -44,7 +44,7 @@ fn main() {
   - [ ] trained -> implements derivatives
   - [ ] untrained -> simple function
 - [ ] Provide interface for computing derivatives w.r.t. kernel params
-- [ ] Learn multithreading to use when iterating over very large arrays
+- [x] Learn multithreading to use when iterating over very large arrays
 - [x] Add performance benchmarks
 - [ ] Implement L-BFGS to optimize kernels
 - [ ] Implement white noise, sum, product, and polynomial kernels
