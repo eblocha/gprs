@@ -11,6 +11,8 @@ use crate::{
     },
 };
 
+use super::errors::GPCompilationError;
+
 /// Standard Gaussian Process
 ///
 /// Definition:
@@ -60,8 +62,11 @@ impl<K: Kernel> GP<K> {
         &'a self,
         x: &'a DMatrix<f64>,
         y: &DVector<f64>,
-    ) -> Result<CompiledGP<K>, IncompatibleShapeError> {
-        let mut kxx = self.kernel.call_triangular(&x, TriangleSide::LOWER)?;
+    ) -> Result<CompiledGP<K>, GPCompilationError> {
+        let mut kxx = match self.kernel.call_triangular(&x, TriangleSide::LOWER) {
+            Err(e) => return Err(GPCompilationError::IncompatibleShapeError(e)),
+            Ok(v) => v,
+        };
 
         let noise = self.noise.clone();
 
@@ -77,8 +82,10 @@ impl<K: Kernel> GP<K> {
             });
 
         // TODO parallel cholesky decomp and solve
-        // TODO return Err if not positive definite
-        let cholesky = kxx.cholesky().unwrap();
+        let cholesky = match kxx.cholesky() {
+            None => return Err(GPCompilationError::NonPositiveDefiniteError),
+            Some(v) => v,
+        };
         let alpha = cholesky.solve(y);
 
         Ok(CompiledGP {
@@ -179,5 +186,18 @@ mod tests {
         let res = compiled.mean(&xp).unwrap();
 
         assert_eq!(res.as_slice(), f.as_slice())
+    }
+
+    /// Attempting to compile a GP with a non-positive-definite covariance matrix will return an Err
+    #[test]
+    #[should_panic]
+    fn test_non_positive_definite() {
+        let kern = RBF::new(vec![1.0].iter(), 1.0);
+        let gp = GP::new(kern, 0.0);
+
+        let x = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
+        let y = DVector::from_vec(vec![0.0, 1.0]);
+
+        gp.compile(&x, &y).unwrap();
     }
 }
