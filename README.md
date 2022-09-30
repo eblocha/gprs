@@ -1,6 +1,6 @@
 # GPrs
 
-Parallelized Guassian Process Regression in Rust
+Parallelized Gaussian Process Regression in Rust
 
 This is my first serious rust library, to help me learn the language!
 
