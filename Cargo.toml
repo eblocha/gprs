@@ -14,5 +14,9 @@ criterion = { version = "0.3", features = ["html_reports"] }
 nalgebra = { version = "0.31.1", features = ["rand"] }
 
 [[bench]]
+name = "gp"
+harness = false
+
+[[bench]]
 name = "rbf_kernel"
 harness = false

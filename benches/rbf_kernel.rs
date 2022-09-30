@@ -1,13 +1,14 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use gprs::kernels::{Kernel, RBF};
+use gprs::kernels::{Kernel, TriangleSide, RBF};
 use nalgebra::DMatrix;
 
 fn create_random(shape: (usize, usize)) -> DMatrix<f64> {
     DMatrix::<f64>::new_random(shape.0, shape.1)
 }
 
-fn criterion_benchmark(c: &mut Criterion) {
+pub fn bench_rbf_kernel(c: &mut Criterion) {
     let kern = RBF::new(vec![1.0, 2.0].iter(), 1.0);
+    const SIZE: usize = 2000;
 
     rayon::ThreadPoolBuilder::new()
         .num_threads(12)
@@ -15,35 +16,30 @@ fn criterion_benchmark(c: &mut Criterion) {
         .unwrap();
 
     // This does allocations
-    let mut group_call = c.benchmark_group("rbf-call");
-
-    for i in [1000 as usize, 1500, 2000, 2500, 3000].iter() {
-        group_call.throughput(criterion::Throughput::Elements(*i as u64));
-        group_call.bench_with_input(format!("{}x{}", i, i), i, |b, n| {
-            let x = create_random((2, *n));
-
-            b.iter(|| kern.call(black_box(&x), black_box(&x)).unwrap())
-        });
-    }
-    group_call.finish();
+    c.bench_function("call-rbf", |b| {
+        let x = create_random((2, SIZE));
+        b.iter(|| kern.call(black_box(&x), black_box(&x)).unwrap());
+    });
 
     // This does not allocate
-    let mut group_call_into = c.benchmark_group("rbf-call-into");
+    c.bench_function("call-inplace-rbf", |b| {
+        let x = create_random((2, SIZE));
+        let mut raw = DMatrix::zeros(SIZE, SIZE);
+        b.iter(|| {
+            kern.call_inplace(black_box(&x), black_box(&x), black_box(&mut raw))
+                .unwrap()
+        })
+    });
 
-    for i in [1000 as usize, 1500, 2000, 2500, 3000].iter() {
-        group_call_into.throughput(criterion::Throughput::Elements(*i as u64));
-        group_call_into.bench_with_input(format!("{}x{}", i, i), i, |b, n| {
-            let mut raw = DMatrix::zeros(*n, *n);
-            let x = create_random((2, *n));
-
-            b.iter(|| {
-                kern.call_inplace(black_box(&x), black_box(&x), black_box(&mut raw))
-                    .unwrap()
-            })
+    // Only compute half the covariance matrix
+    c.bench_function("call-triangular-rbf", |b| {
+        let x = create_random((2, SIZE));
+        b.iter(|| {
+            kern.call_triangular(black_box(&x), TriangleSide::LOWER)
+                .unwrap()
         });
-    }
-    group_call_into.finish();
+    });
 }
 
-criterion_group!(benches, criterion_benchmark);
+criterion_group!(benches, bench_rbf_kernel);
 criterion_main!(benches);

@@ -1,6 +1,6 @@
 # GPrs
 
-Guassian Process Regression in Rust
+Parallelized Guassian Process Regression in Rust
 
 This is my first serious rust library, to help me learn the language!
 
@@ -31,6 +31,7 @@ fn main() {
     ]);
 
     // returns an Err if x and y do not have compatible shapes
+    // this method is parallelized
     let k = kern.call(&x, &y).unwrap();
 
     assert_eq!(k.shape(), (3, 4));

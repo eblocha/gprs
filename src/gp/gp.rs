@@ -5,6 +5,13 @@ use crate::kernels::{
     {Kernel, TriangleSide},
 };
 
+/// Standard Gaussian Process
+///
+/// Definition:
+///
+/// `f = K*T [K + sI]^-1 y`
+///
+/// `cov = K** - K*T [K + sI]^-1 K*`
 pub struct GP<K: Kernel> {
     kernel: K,
     noise: f64,
@@ -43,40 +50,112 @@ impl<K: Kernel> GP<K> {
     ///
     /// let compiled = gp.compile(&x, &y);
     /// ```
-    pub fn compile(
-        &self,
-        x: &DMatrix<f64>,
+    pub fn compile<'a>(
+        &'a self,
+        x: &'a DMatrix<f64>,
         y: &DVector<f64>,
-    ) -> Result<CompiledGP, IncompatibleShapeError> {
-        let mut noise = DMatrix::identity(x.nrows(), x.nrows());
-        // TODO parallel diagonal fill
+    ) -> Result<CompiledGP<K>, IncompatibleShapeError> {
+        let mut noise = DMatrix::identity(x.ncols(), x.ncols());
+        // TODO parallel diagonal fill/subtraction
         noise.fill_diagonal(self.noise);
 
         let kxx = self.kernel.call_triangular(&x, TriangleSide::LOWER)?;
 
-        // TODO parallel cholesky decomp
+        // TODO parallel cholesky decomp and solve
+        // TODO return Err if not positive definite
         let cholesky = (kxx + noise).cholesky().unwrap();
-        let mut alpha = cholesky.solve(y);
-        cholesky.solve_mut(&mut alpha);
+        let alpha = cholesky.solve(y);
 
-        Ok(CompiledGP { cholesky, alpha })
+        Ok(CompiledGP {
+            cholesky,
+            alpha,
+            kernel: &self.kernel,
+            x: &x,
+        })
     }
 }
 
-pub struct CompiledGP {
+pub struct CompiledGP<'kernel, K: Kernel> {
     /// The cholesky decomposition of (K + noise * I)
     cholesky: Cholesky<f64, Dynamic>,
     /// Factor to compute mean
     alpha: DVector<f64>,
+    /// The original kernel
+    kernel: &'kernel K,
+    /// The input data set
+    x: &'kernel DMatrix<f64>,
 }
 
-impl CompiledGP {
+impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
     // /// Compute the mean and variance from input data
-    // fn call(x: &DMatrix<f64>) -> (DMatrix<f64>, DMatrix<f64>) {}
+    // fn call(
+    //     &self,
+    //     x: &DMatrix<f64>,
+    // ) -> Result<(DMatrix<f64>, DMatrix<f64>), IncompatibleShapeError> {
+    //     // compute K*
+    //     let k_x_xp = self.kernel.call(&self.x, x)?;
 
-    // /// Compute the mean from input data
-    // fn mean(x: &DMatrix<f64>) -> DMatrix<f64> {}
+    //     // TODO parallelize matmul
+    //     return Ok(k_x_xp * self.alpha);
+    // }
 
-    // /// Compute the variance from input data
-    // fn var(x: &DMatrix<f64>) -> DMatrix<f64> {}
+    /// Compute the mean from input data
+    pub fn mean(&self, x: &DMatrix<f64>) -> Result<DVector<f64>, IncompatibleShapeError> {
+        // compute K*T
+        let k_x_xp = self.kernel.call(&self.x, x)?;
+
+        // TODO parallelize matmul
+        Ok(k_x_xp * &self.alpha)
+    }
+
+    // /// Compute just the diagonal variance
+    // pub fn var(&self, x: &DMatrix<f64>) -> Result<DVector<f64>, IncompatibleShapeError> {
+
+    // }
+
+    /// Compute the full variance matrix from input data
+    pub fn var_full(&self, x: &DMatrix<f64>) -> Result<DMatrix<f64>, IncompatibleShapeError> {
+        // compute K*
+        let mut k_x_xp = self.kernel.call(x, &self.x)?;
+
+        // compute K**
+        let k_xp_xp = self.kernel.call(x, x)?;
+
+        // solve L \ K*
+        self.cholesky.solve_mut(&mut k_x_xp);
+
+        // TODO parallelize vTv
+        let k_x_xp = k_x_xp.transpose() * k_x_xp;
+
+        // TODO parallelize subtraction
+        Ok(k_xp_xp - k_x_xp)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nalgebra::{DMatrix, DVector};
+
+    use crate::kernels::RBF;
+
+    use super::GP;
+
+    /// Predicting a noiseless GP on one of the input points returns the measured output
+    #[test]
+    fn test_point() {
+        let kern = RBF::new(vec![1.0].iter(), 1.0);
+        let gp = GP::new(kern, 0.0);
+
+        let x = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
+        let y = DVector::from_vec(vec![0.0, 1.0]);
+
+        let compiled = gp.compile(&x, &y).unwrap();
+
+        let xp = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
+        let f = DVector::from_vec(vec![0.0, 1.0]);
+
+        let res = compiled.mean(&xp).unwrap();
+
+        assert_eq!(res.as_slice(), f.as_slice())
+    }
 }
