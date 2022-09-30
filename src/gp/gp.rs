@@ -1,8 +1,14 @@
-use nalgebra::{Cholesky, DMatrix, DVector, Dynamic};
+use std::ops::Mul;
 
-use crate::kernels::{
-    errors::IncompatibleShapeError,
-    {Kernel, TriangleSide},
+use nalgebra::{Cholesky, DMatrix, DVector, Dynamic};
+use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+
+use crate::{
+    indexing::index_to_2d,
+    kernels::{
+        errors::IncompatibleShapeError,
+        {Kernel, TriangleSide},
+    },
 };
 
 /// Standard Gaussian Process
@@ -55,15 +61,24 @@ impl<K: Kernel> GP<K> {
         x: &'a DMatrix<f64>,
         y: &DVector<f64>,
     ) -> Result<CompiledGP<K>, IncompatibleShapeError> {
-        let mut noise = DMatrix::identity(x.ncols(), x.ncols());
-        // TODO parallel diagonal fill/subtraction
-        noise.fill_diagonal(self.noise);
+        let mut kxx = self.kernel.call_triangular(&x, TriangleSide::LOWER)?;
 
-        let kxx = self.kernel.call_triangular(&x, TriangleSide::LOWER)?;
+        let noise = self.noise.clone();
+
+        kxx.as_mut_slice()
+            .into_par_iter()
+            .enumerate()
+            .filter(|(index, _v)| {
+                let (i, j) = index_to_2d(*index, y.len());
+                return i == j;
+            })
+            .for_each(|(_i, v)| {
+                *v += noise;
+            });
 
         // TODO parallel cholesky decomp and solve
         // TODO return Err if not positive definite
-        let cholesky = (kxx + noise).cholesky().unwrap();
+        let cholesky = kxx.cholesky().unwrap();
         let alpha = cholesky.solve(y);
 
         Ok(CompiledGP {
@@ -105,7 +120,7 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
         let k_x_xp = self.kernel.call(&self.x, x)?;
 
         // TODO parallelize matmul
-        Ok(k_x_xp * &self.alpha)
+        Ok(k_x_xp.mul(&self.alpha))
     }
 
     // /// Compute just the diagonal variance
@@ -125,10 +140,17 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
         self.cholesky.solve_mut(&mut k_x_xp);
 
         // TODO parallelize vTv
-        let k_x_xp = k_x_xp.transpose() * k_x_xp;
+        let k_x_xp = k_x_xp.tr_mul(&k_x_xp);
 
-        // TODO parallelize subtraction
-        Ok(k_xp_xp - k_x_xp)
+        let res = k_xp_xp
+            .as_slice()
+            .into_par_iter()
+            .zip(k_x_xp.as_slice())
+            .map(|(l, r)| l - r)
+            .collect::<Vec<_>>();
+
+        let shape = k_xp_xp.shape();
+        Ok(DMatrix::from_vec(shape.0, shape.1, res))
     }
 }
 

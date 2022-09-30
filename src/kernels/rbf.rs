@@ -1,4 +1,7 @@
-use crate::parameterized::Parameterized;
+use crate::{
+    indexing::{index_to_2d, slice_indices},
+    parameterized::Parameterized,
+};
 
 use super::{
     errors::IncompatibleShapeError,
@@ -113,27 +116,6 @@ impl RBF {
         return Ok(());
     }
 
-    /// Given an index into a flattened 2-d matrix, find the 2-d coordinate of that index
-    ///
-    /// `nmajor` is the length of the major axis of the matrix (i.e. ncols for column-major, nrows for row-major)
-    ///
-    /// The returned index is in (minor, major) axis order
-    #[inline(always)]
-    fn index_to_2d(index: usize, nmajor: usize) -> (usize, usize) {
-        let i = index / nmajor;
-        let j = index - (i * nmajor);
-        (i, j)
-    }
-
-    /// Given a major axis index and the number of dims,
-    /// return the start and end slice positions to slice along the minor axis at the index
-    #[inline(always)]
-    fn slice_indices(index: usize, dims: usize) -> (usize, usize) {
-        let xs = index * dims;
-        let xe = xs + dims;
-        (xs, xe)
-    }
-
     fn call_triangular_inplace<'x>(
         &self,
         x: &'x DMatrix<f64>,
@@ -152,7 +134,7 @@ impl RBF {
             .into_par_iter()
             .enumerate()
             .map(|(index, v)| {
-                let (i, j) = Self::index_to_2d(index, x_shape.1);
+                let (i, j) = index_to_2d(index, x_shape.1);
                 (i, j, v)
             })
             .filter(|(i, j, _v)| match side {
@@ -160,8 +142,8 @@ impl RBF {
                 TriangleSide::UPPER => i >= j,
             })
             .for_each(|(i, j, v)| {
-                let (xs, xe) = Self::slice_indices(i, dims);
-                let (ys, ye) = Self::slice_indices(j, dims);
+                let (xs, xe) = slice_indices(i, dims);
+                let (ys, ye) = slice_indices(j, dims);
 
                 // SAFETY: the indices are valid because we checked them at the beginning of the function
                 unsafe {
@@ -196,9 +178,9 @@ impl Kernel for RBF {
             .into_par_iter()
             .enumerate()
             .for_each(|(index, v)| {
-                let (i, j) = Self::index_to_2d(index, y_shape.1);
-                let (xs, xe) = Self::slice_indices(i, dims);
-                let (ys, ye) = Self::slice_indices(j, dims);
+                let (i, j) = index_to_2d(index, y_shape.1);
+                let (xs, xe) = slice_indices(i, dims);
+                let (ys, ye) = slice_indices(j, dims);
 
                 // SAFETY: the indices are valid because we checked them at the beginning of the function
                 unsafe {
