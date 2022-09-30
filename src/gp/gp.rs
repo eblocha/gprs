@@ -63,6 +63,14 @@ impl<K: Kernel> GP<K> {
         x: &'a DMatrix<f64>,
         y: &DVector<f64>,
     ) -> Result<CompiledGP<K>, GPCompilationError> {
+        if x.shape().1 != y.len() {
+            return Err(GPCompilationError::IncompatibleShapeError(
+                IncompatibleShapeError {
+                    shapes: vec![x.shape(), y.shape()],
+                },
+            ));
+        }
+
         let mut kxx = match self.kernel.call_triangular(&x, TriangleSide::LOWER) {
             Err(e) => return Err(GPCompilationError::IncompatibleShapeError(e)),
             Ok(v) => v,
