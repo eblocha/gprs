@@ -134,7 +134,7 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
         let k_x_xp = self.kernel.call(&self.x, x)?;
         let res = par_matmul(&k_x_xp, &self.alpha)?;
 
-        Ok(DVector::from_column_slice(res.as_slice()))
+        Ok(DVector::from_vec(res))
     }
 
     // /// Compute just the diagonal variance

@@ -1,4 +1,4 @@
-use nalgebra::{DMatrix, Dim, Matrix, Storage};
+use nalgebra::{Dim, Matrix, Storage};
 use rayon::prelude::*;
 
 use crate::kernels::errors::IncompatibleShapeError;
@@ -13,28 +13,28 @@ use crate::kernels::errors::IncompatibleShapeError;
 /// // these look transposed since they are stored column-major
 ///
 /// let lhs = DMatrix::from_vec(2, 3, vec![
-/// 1.0, 4.0,
-/// 2.0, 5.0,
-/// 3.0, 6.0,
+///     1.0, 4.0,
+///     2.0, 5.0,
+///     3.0, 6.0,
 /// ]);
 ///
 /// let rhs = DMatrix::from_vec(3, 2, vec![
-/// 7.0,  9.0, 11.0,
-/// 8.0, 10.0, 12.0,
+///     7.0,  9.0, 11.0,
+///     8.0, 10.0, 12.0,
 /// ]);
 ///
 ///
-/// let expected = DMatrix::from_vec(2, 2, vec![
-/// 58.0, 139.0,
-/// 64.0, 154.0,
-/// ]);
+/// let expected = vec![
+///     58.0, 139.0,
+///     64.0, 154.0,
+/// ];
 ///
 /// assert_eq!(par_matmul(&lhs, &rhs).unwrap(), expected);
 /// ```
 pub fn par_matmul<LI, LJ, RI, RJ, SL, SR>(
     lhs: &Matrix<f64, LI, LJ, SL>,
     rhs: &Matrix<f64, RI, RJ, SR>,
-) -> Result<DMatrix<f64>, IncompatibleShapeError>
+) -> Result<Vec<f64>, IncompatibleShapeError>
 where
     LI: Dim,
     LJ: Dim,
@@ -71,5 +71,5 @@ where
         })
         .collect();
 
-    Ok(DMatrix::from_vec(l_shape.0, r_shape.1, vals))
+    Ok(vals)
 }
