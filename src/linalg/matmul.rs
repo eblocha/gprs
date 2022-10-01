@@ -53,7 +53,8 @@ where
         });
     }
 
-    // iterate down cols of rhs, zipping with the rows of the lhs
+    // iterate down cols of rhs, zipping with the rows of the lhs. Outer loop is rhs cols, first inner loop is lhs rows.
+    // Second inner loop is zip of lhs cols and rhs rows.
     let vals: Vec<f64> = (0..r_shape.1)
         .into_par_iter()
         .flat_map(move |rj| {
@@ -61,8 +62,10 @@ where
                 (0..r_shape.0)
                     .into_par_iter()
                     .zip((0..l_shape.1).into_par_iter())
-                    // TODO use unsafe indexing
-                    .map(move |(ri, lj)| lhs.index((li, lj)) * rhs.index((ri, rj)))
+                    // SAFETY: indices are inherently valid since they come from the corresponding shapes
+                    .map(move |(ri, lj)| unsafe {
+                        lhs.get_unchecked((li, lj)) * rhs.get_unchecked((ri, rj))
+                    })
                     .sum::<f64>()
             })
         })
