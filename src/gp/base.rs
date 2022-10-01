@@ -141,22 +141,20 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
         let mut k_x_xp = self.kernel.call(x, self.x)?;
 
         // compute K**
-        let k_xp_xp = self.kernel.call(x, x)?;
+        let mut k_xp_xp = self.kernel.call(x, x)?;
 
         // TODO parallel cholesky solve
         self.cholesky.solve_mut(&mut k_x_xp);
 
-        let k_x_xp = par_tr_matmul(&k_x_xp)?;
+        let zipped = par_tr_matmul(&k_x_xp)?;
 
-        let res = k_xp_xp
-            .as_slice()
+        k_xp_xp
+            .as_mut_slice()
             .into_par_iter()
-            .zip(k_x_xp.as_slice())
-            .map(|(l, r)| l - r)
-            .collect::<Vec<_>>();
+            .zip(zipped)
+            .for_each(|(l, r)| *l -= r);
 
-        let shape = k_xp_xp.shape();
-        Ok(DMatrix::from_vec(shape.0, shape.1, res))
+        Ok(k_xp_xp)
     }
 }
 

@@ -60,8 +60,7 @@ where
         .flat_map(move |rj| {
             (0..l_shape.0).into_par_iter().map(move |li| {
                 (0..r_shape.0)
-                    .into_par_iter()
-                    .zip((0..l_shape.1).into_par_iter())
+                    .zip(0..l_shape.1)
                     // SAFETY: indices are inherently valid since they come from the corresponding shapes
                     .map(move |(ri, lj)| unsafe {
                         lhs.get_unchecked((li, lj)) * rhs.get_unchecked((ri, rj))
@@ -108,13 +107,12 @@ pub fn par_tr_matmul(v: &DMatrix<f64>) -> Result<Vec<f64>, IncompatibleShapeErro
         });
     }
 
-    let vals: Vec<f64> = (0..shape.1)
+    let vals: Vec<_> = (0..shape.1)
         .into_par_iter()
         .flat_map(move |rj| {
             (0..shape.0).into_par_iter().map(move |li| {
                 (0..shape.0)
-                    .into_par_iter()
-                    .zip((0..shape.1).into_par_iter())
+                    .zip(0..shape.1)
                     // SAFETY: indices are inherently valid since they come from the corresponding shapes
                     .map(move |(ri, lj)| unsafe {
                         v.get_unchecked((lj, li)) * v.get_unchecked((ri, rj))
