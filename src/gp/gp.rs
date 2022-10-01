@@ -70,19 +70,19 @@ impl<K: Kernel> GP<K> {
             ));
         }
 
-        let mut kxx = match self.kernel.call_triangular(&x, TriangleSide::LOWER) {
+        let mut kxx = match self.kernel.call_triangular(x, TriangleSide::LOWER) {
             Err(e) => return Err(GPCompilationError::IncompatibleShapeError(e)),
             Ok(v) => v,
         };
 
-        let noise = self.noise.clone();
+        let noise = self.noise;
 
         kxx.as_mut_slice()
             .into_par_iter()
             .enumerate()
             .filter(|(index, _v)| {
                 let (i, j) = index_to_2d(*index, y.len());
-                return i == j;
+                i == j
             })
             .for_each(|(_i, v)| {
                 *v += noise;
@@ -99,7 +99,7 @@ impl<K: Kernel> GP<K> {
             cholesky,
             alpha,
             kernel: &self.kernel,
-            x: &x,
+            x,
         })
     }
 }
@@ -131,7 +131,7 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
     /// Compute the mean from input data
     pub fn mean(&self, x: &DMatrix<f64>) -> Result<DVector<f64>, IncompatibleShapeError> {
         // compute K*T
-        let k_x_xp = self.kernel.call(&self.x, x)?;
+        let k_x_xp = self.kernel.call(self.x, x)?;
         let res = par_matmul(&k_x_xp, &self.alpha)?;
 
         Ok(DVector::from_vec(res))
@@ -145,7 +145,7 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
     /// Compute the full variance matrix from input data
     pub fn var_full(&self, x: &DMatrix<f64>) -> Result<DMatrix<f64>, IncompatibleShapeError> {
         // compute K*
-        let mut k_x_xp = self.kernel.call(x, &self.x)?;
+        let mut k_x_xp = self.kernel.call(x, self.x)?;
 
         // compute K**
         let k_xp_xp = self.kernel.call(x, x)?;

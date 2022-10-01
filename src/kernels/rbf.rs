@@ -113,7 +113,7 @@ impl RBF {
             });
         }
 
-        return Ok(());
+        Ok(())
     }
 
     fn call_triangular_inplace<'x>(
@@ -153,7 +153,7 @@ impl RBF {
                 }
             });
 
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -190,7 +190,7 @@ impl Kernel for RBF {
                 }
             });
 
-        return Ok(());
+        Ok(())
     }
 
     fn call(
@@ -204,7 +204,7 @@ impl Kernel for RBF {
 
         self.call_inplace(x, y, &mut value)?;
 
-        return Ok(value);
+        Ok(value)
     }
 
     fn call_triangular<'x>(
@@ -217,13 +217,13 @@ impl Kernel for RBF {
 
         self.call_triangular_inplace(x, side, &mut value)?;
 
-        return Ok(value);
+        Ok(value)
     }
 }
 
 /// Clone a vector with cloneable elements
-fn clone_vec<T: Clone>(vec: &Vec<T>) -> Vec<T> {
-    vec.iter().map(|v| v.clone()).collect()
+fn clone_vec<T: Clone>(vec: &[T]) -> Vec<T> {
+    vec.to_vec()
 }
 
 impl<'a> Parameterized<'a, (&'a Vec<f64>, f64)> for RBF {
@@ -236,11 +236,11 @@ impl<'a> Parameterized<'a, (&'a Vec<f64>, f64)> for RBF {
         self.amplitude = params.1
     }
 
-    fn from_params<'b>(params: (&'b Vec<f64>, f64)) -> Self {
-        return RBF {
+    fn from_params(params: (&Vec<f64>, f64)) -> Self {
+        RBF {
             gamma: clone_vec(params.0),
             amplitude: params.1,
-        };
+        }
     }
 }
 
@@ -310,7 +310,7 @@ mod tests {
         let y = DMatrix::from_vec(1, 1, vec![3.0]);
         let k = kern.call(&x, &y).unwrap();
 
-        assert_eq!(k[0], (-8.0 as f64).exp());
+        assert_eq!(k[0], (-8.0_f64).exp());
     }
 
     #[test]
@@ -345,6 +345,6 @@ mod tests {
         let y = DMatrix::from_vec(2, 1, vec![3.0, 4.0]);
         let k = kern.call(&x, &y).unwrap();
 
-        assert_eq!(k[0], (-9.125 as f64).exp());
+        assert_eq!(k[0], (-9.125_f64).exp());
     }
 }
