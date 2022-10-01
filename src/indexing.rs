@@ -10,7 +10,7 @@ pub fn index_to_2d(index: usize, nmajor: usize) -> (usize, usize) {
     (i, j)
 }
 
-/// Given a major axis index and the size of the major axis,
+/// Given a minor axis index and the size of the major axis,
 /// return the start and end slice positions to slice along the major axis at the index
 #[inline(always)]
 pub fn slice_indices(index: usize, nmajor: usize) -> (usize, usize) {
