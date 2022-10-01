@@ -24,7 +24,7 @@ fn bench_matmul(c: &mut Criterion) {
     c.bench_function("matmul-transpose", |b| {
         let lhs = create_random((SZ, SZ));
 
-        b.iter(|| par_tr_matmul(black_box(&lhs)).unwrap());
+        b.iter(|| par_tr_matmul(black_box(&lhs)));
     });
 }
 

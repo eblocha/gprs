@@ -97,15 +97,8 @@ where
 ///
 /// assert_eq!(par_tr_matmul(&v).unwrap(), expected);
 /// ```
-pub fn par_tr_matmul(v: &DMatrix<f64>) -> Result<Vec<f64>, IncompatibleShapeError> {
+pub fn par_tr_matmul(v: &DMatrix<f64>) -> Vec<f64> {
     let shape = v.shape();
-
-    // nrows of lhs must == ncols of rhs
-    if !v.is_square() {
-        return Err(IncompatibleShapeError {
-            shapes: vec![shape, (shape.1, shape.0)],
-        });
-    }
 
     let vals: Vec<_> = (0..shape.1)
         .into_par_iter()
@@ -123,5 +116,5 @@ pub fn par_tr_matmul(v: &DMatrix<f64>) -> Result<Vec<f64>, IncompatibleShapeErro
         })
         .collect();
 
-    Ok(vals)
+    vals
 }

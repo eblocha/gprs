@@ -146,7 +146,7 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
         // TODO parallel cholesky solve
         self.cholesky.solve_mut(&mut k_x_xp);
 
-        let zipped = par_tr_matmul(&k_x_xp)?;
+        let zipped = par_tr_matmul(&k_x_xp);
 
         k_xp_xp
             .as_mut_slice()
