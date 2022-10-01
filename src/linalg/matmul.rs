@@ -1,7 +1,7 @@
 use nalgebra::{Dim, Matrix, Storage};
 use rayon::prelude::*;
 
-use crate::kernels::errors::IncompatibleShapeError;
+use super::errors::IncompatibleShapeError;
 
 /// Parallel matrix multiplication implementation with rayon
 ///

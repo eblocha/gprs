@@ -1,6 +1,6 @@
 use nalgebra::DMatrix;
 
-use super::errors::IncompatibleShapeError;
+use crate::linalg::errors::IncompatibleShapeError;
 
 pub enum TriangleSide {
     UPPER,

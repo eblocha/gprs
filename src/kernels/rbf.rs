@@ -1,12 +1,10 @@
 use crate::{
     indexing::{index_to_2d, slice_indices},
+    linalg::errors::IncompatibleShapeError,
     parameterized::Parameterized,
 };
 
-use super::{
-    errors::IncompatibleShapeError,
-    kernel::{Kernel, TriangleSide},
-};
+use super::kernel::{Kernel, TriangleSide};
 use nalgebra::DMatrix;
 use rayon::prelude::*;
 

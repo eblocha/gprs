@@ -1,4 +1,3 @@
-pub mod errors;
 mod kernel;
 mod rbf;
 

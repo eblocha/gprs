@@ -1,4 +1,4 @@
-use crate::kernels::errors::IncompatibleShapeError;
+use crate::linalg::errors::IncompatibleShapeError;
 
 #[derive(Debug)]
 pub enum GPCompilationError {

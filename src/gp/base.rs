@@ -3,11 +3,8 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIter
 
 use crate::{
     indexing::index_to_2d,
-    kernels::{
-        errors::IncompatibleShapeError,
-        {Kernel, TriangleSide},
-    },
-    linalg::par_matmul,
+    kernels::{Kernel, TriangleSide},
+    linalg::{errors::IncompatibleShapeError, par_matmul},
 };
 
 use super::errors::GPCompilationError;
