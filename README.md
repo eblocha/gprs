@@ -49,7 +49,7 @@ fn main() {
     ]);
 
     // May return an IncompatibleShapeError
-    let mean = compiled.mean();
+    let mean = compiled.mean(x_pred).unwrap();
 
     // `mean` is a `nalgebra::DVector<f64>` with length 4
 }
