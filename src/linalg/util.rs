@@ -13,10 +13,11 @@ impl<T> SyncMutPtr<T> {
 ///         It is safe because no two threads will be modifying data at the same index.
 unsafe impl<T> Sync for SyncMutPtr<T> {}
 
-/// Add a value to the matrix diagonal
+/// Add a value to the matrix diagonal, in-place, in parallel
 ///
-/// SAFETY: unsafe if `mat` is not square
-pub unsafe fn add_diagonal_mut(mat: &mut DMatrix<f64>, f: &f64) {
+/// # Safety
+/// unsafe if `mat` is not square
+pub unsafe fn par_add_diagonal_mut_unchecked(mat: &mut DMatrix<f64>, f: &f64) {
     let mat_ptr = SyncMutPtr(mat.as_mut_ptr());
 
     (0..mat.shape().0).into_par_iter().for_each(|i| {

@@ -4,7 +4,10 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIter
 use crate::{
     // indexing::index_to_2d,
     kernels::{Kernel, TriangleSide},
-    linalg::{errors::IncompatibleShapeError, par_matmul, par_tr_matmul, util::add_diagonal_mut},
+    linalg::{
+        errors::IncompatibleShapeError, par_matmul, par_tr_matmul,
+        util::par_add_diagonal_mut_unchecked,
+    },
 };
 
 use super::errors::GPCompilationError;
@@ -74,7 +77,7 @@ impl<K: Kernel> GP<K> {
 
         // SAFETY: kxx is guaranteed to be square
         unsafe {
-            add_diagonal_mut(&mut kxx, &self.noise);
+            par_add_diagonal_mut_unchecked(&mut kxx, &self.noise);
         }
 
         // TODO parallel cholesky decomp and solve

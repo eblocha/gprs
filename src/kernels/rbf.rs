@@ -205,9 +205,9 @@ impl Kernel for RBF {
         Ok(value)
     }
 
-    fn call_triangular<'x>(
+    fn call_triangular(
         &self,
-        x: &'x DMatrix<f64>,
+        x: &DMatrix<f64>,
         side: TriangleSide,
     ) -> Result<DMatrix<f64>, IncompatibleShapeError> {
         let x_shape = x.shape();
