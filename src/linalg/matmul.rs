@@ -1,4 +1,4 @@
-use nalgebra::{Dim, Matrix, Storage};
+use nalgebra::{DMatrix, Dim, Matrix, Storage};
 use rayon::prelude::*;
 
 use super::errors::IncompatibleShapeError;
@@ -65,6 +65,59 @@ where
                     // SAFETY: indices are inherently valid since they come from the corresponding shapes
                     .map(move |(ri, lj)| unsafe {
                         lhs.get_unchecked((li, lj)) * rhs.get_unchecked((ri, rj))
+                    })
+                    .sum::<f64>()
+            })
+        })
+        .collect();
+
+    Ok(vals)
+}
+
+/// Parallel transpose matrix multiplication, equivalent to par_matmul(mat.transpose(), mat)
+///
+/// # Examples
+/// ```rust
+/// use nalgebra::DMatrix;
+/// use gprs::linalg::par_tr_matmul;
+///
+/// // these look transposed since they are stored column-major
+///
+/// let v = DMatrix::from_vec(3, 3, vec![
+///     1.0, 4.0, 7.0,
+///     2.0, 5.0, 8.0,
+///     3.0, 6.0, 9.0,
+/// ]);
+///
+///
+/// let expected = vec![
+///     66.0,  78.0,  90.0,
+///     78.0,  93.0, 108.0,
+///     90.0, 108.0, 126.0,
+/// ];
+///
+/// assert_eq!(par_tr_matmul(&v).unwrap(), expected);
+/// ```
+pub fn par_tr_matmul(v: &DMatrix<f64>) -> Result<Vec<f64>, IncompatibleShapeError> {
+    let shape = v.shape();
+
+    // nrows of lhs must == ncols of rhs
+    if !v.is_square() {
+        return Err(IncompatibleShapeError {
+            shapes: vec![shape, (shape.1, shape.0)],
+        });
+    }
+
+    let vals: Vec<f64> = (0..shape.1)
+        .into_par_iter()
+        .flat_map(move |rj| {
+            (0..shape.0).into_par_iter().map(move |li| {
+                (0..shape.0)
+                    .into_par_iter()
+                    .zip((0..shape.1).into_par_iter())
+                    // SAFETY: indices are inherently valid since they come from the corresponding shapes
+                    .map(move |(ri, lj)| unsafe {
+                        v.get_unchecked((lj, li)) * v.get_unchecked((ri, rj))
                     })
                     .sum::<f64>()
             })

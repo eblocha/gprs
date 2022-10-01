@@ -6,35 +6,52 @@ This is my first serious rust library, to help me learn the language!
 
 ## Features
 
-Currently, I have implemented the RBF kernel, nothing else yet.
+Currently, I have implemented the RBF kernel and the GP mean calculation.
 
 ```rs
-use gprs::kernels::{RBF,Kernel};
+use gprs::{kernels::{RBF,Kernel},gp::GP};
 use nalgebra::{DVector,DMatrix};
 
 fn main() {
-    // create a 2-d anisotropic RBF kernel with length scales of 1.0 and 2.0
-    let kern = RBF::new(vec![1.0, 2.0].iter());
+    use gprs::{gp::GP, kernels::{Kernel, RBF}};
+    use nalgebra::{DVector, DMatrix};
 
-    // estimate covariance between 2 sets of points
+    // create a 2-d anisotropic RBF kernel with length scales of 1.0 and 2.0, and a sigma of 1.0
+    let kernel = RBF::new(vec![1.0, 2.0].iter(), 1.0);
+
+    // create a GP from this kernel with a noise value (sigma) of 1.0. Use 0.0 for noiseless GP
+    let gp = GP::new(
+        kernel,
+        1.0,
+    );
+
     let x = DMatrix::from_vec(2, 3, vec![
         1.8, 5.5,
         1.5, 4.5,
         2.3, 4.6
     ]);
 
-    let y = DMatrix::from_vec(2, 4, vec![
-        2.2, 3.0,
-        1.8, 5.5,
-        1.5, 4.5,
-        2.3, 4.6
+    let y = DVector::from_vec(vec![
+        2.2,
+        1.8,
+        1.5,
     ]);
 
-    // returns an Err if x and y do not have compatible shapes
-    // this method is parallelized
-    let k = kern.call(&x, &y).unwrap();
+    // May return a GPCompilationError
+    let compiled = gp.compile(&x, &y).unwrap();
 
-    assert_eq!(k.shape(), (3, 4));
+    // Predict on some new data
+    let x_pred = DMatrix::from_vec(2, 3, vec![
+        0.0, 5.0,
+        1.0, 6.0,
+        2.0, 7.0,
+        3.0, 8.0,
+    ]);
+
+    // May return an IncompatibleShapeError
+    let mean = compiled.mean();
+
+    // `mean` is a `nalgebra::DVector<f64>` with length 4
 }
 ```
 

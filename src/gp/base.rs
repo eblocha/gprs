@@ -4,7 +4,7 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIter
 use crate::{
     indexing::index_to_2d,
     kernels::{Kernel, TriangleSide},
-    linalg::{errors::IncompatibleShapeError, par_matmul},
+    linalg::{errors::IncompatibleShapeError, par_matmul, par_tr_matmul},
 };
 
 use super::errors::GPCompilationError;
@@ -30,10 +30,10 @@ impl<K: Kernel> GP<K> {
     ///
     /// # Examples
     /// ```rust
-    /// use gprs::{gp::{GP, CompiledGP}, kernels::{Kernel, RBF}};
-    /// use nalgebra::{DVector,DMatrix};
+    /// use gprs::{gp::GP, kernels::{Kernel, RBF}};
+    /// use nalgebra::{DVector, DMatrix};
     ///
-    /// let kernel = RBF::new(vec![1.0].iter(), 1.0);
+    /// let kernel = RBF::new(vec![1.0, 2.0].iter(), 1.0);
     ///
     /// let gp = GP::new(
     ///     kernel,
@@ -52,7 +52,7 @@ impl<K: Kernel> GP<K> {
     ///     1.5,
     /// ]);
     ///
-    /// let compiled = gp.compile(&x, &y);
+    /// let compiled = gp.compile(&x, &y).unwrap();
     /// ```
     pub fn compile<'a>(
         &'a self,
@@ -118,11 +118,7 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
     //     &self,
     //     x: &DMatrix<f64>,
     // ) -> Result<(DMatrix<f64>, DMatrix<f64>), IncompatibleShapeError> {
-    //     // compute K*
-    //     let k_x_xp = self.kernel.call(&self.x, x)?;
 
-    //     // TODO parallelize matmul
-    //     return Ok(k_x_xp * self.alpha);
     // }
 
     /// Compute the mean from input data
@@ -147,11 +143,10 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
         // compute K**
         let k_xp_xp = self.kernel.call(x, x)?;
 
-        // solve L \ K*
+        // TODO parallel cholesky solve
         self.cholesky.solve_mut(&mut k_x_xp);
 
-        // TODO parallelize vTv
-        let k_x_xp = k_x_xp.tr_mul(&k_x_xp);
+        let k_x_xp = par_tr_matmul(&k_x_xp)?;
 
         let res = k_xp_xp
             .as_slice()
