@@ -217,6 +217,13 @@ impl Kernel for RBF {
 
         Ok(value)
     }
+
+    fn call_diagonal(&self, x: &DMatrix<f64>) -> Result<Vec<f64>, IncompatibleShapeError> {
+        Ok(x.as_slice()
+            .par_chunks(x.shape().0)
+            .map(|point| self.call_point(point, point))
+            .collect::<Vec<f64>>())
+    }
 }
 
 /// Clone a vector with cloneable elements

@@ -34,4 +34,6 @@ pub trait Kernel {
         x: &DMatrix<f64>,
         side: TriangleSide,
     ) -> Result<DMatrix<f64>, IncompatibleShapeError>;
+
+    fn call_diagonal(&self, x: &DMatrix<f64>) -> Result<Vec<f64>, IncompatibleShapeError>;
 }

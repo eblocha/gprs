@@ -1,6 +1,6 @@
 use std::iter::Sum;
 
-use nalgebra::{DMatrix, Dim, Matrix, Storage};
+use nalgebra::{Dim, Matrix, Storage};
 use rayon::prelude::*;
 
 use super::errors::IncompatibleShapeError;
@@ -65,7 +65,7 @@ where
     ))
 }
 
-/// Parallel transpose matrix multiplication, equivalent to par_matmul(&mat.transpose(), &mat), but more efficient
+/// Parallel transpose matrix multiplication, equivalent to par_matmul(&lhs.transpose(), &rhs), but more efficient
 ///
 /// # Examples
 /// ```rust
@@ -87,15 +87,38 @@ where
 ///     90.0, 108.0, 126.0,
 /// ];
 ///
-/// assert_eq!(par_tr_matmul(&v), expected);
+/// assert_eq!(par_tr_matmul(&v, &v).unwrap(), expected);
 /// ```
-pub fn par_tr_matmul(v: &DMatrix<f64>) -> Vec<f64> {
-    let shape = v.shape();
+pub fn par_tr_matmul<LI, LJ, RI, RJ, SL, SR>(
+    lhs: &Matrix<f64, LI, LJ, SL>,
+    rhs: &Matrix<f64, RI, RJ, SR>,
+) -> Result<Vec<f64>, IncompatibleShapeError>
+where
+    LI: Dim,
+    LJ: Dim,
+    RI: Dim,
+    RJ: Dim,
+    SL: Storage<f64, LI, LJ> + Sync,
+    SR: Storage<f64, RI, RJ> + Sync,
+{
+    let l_shape = (lhs.shape().1, lhs.shape().0);
+    let r_shape = rhs.shape();
 
-    matmul_wrapper(shape, shape, |(li, lj), (ri, rj)| unsafe {
-        // SAFETY: indices are inherently valid
-        v.get_unchecked((lj, li)) * v.get_unchecked((ri, rj))
-    })
+    // nrows of lhs must == ncols of rhs
+    if l_shape.1 != r_shape.0 {
+        return Err(IncompatibleShapeError {
+            shapes: vec![l_shape, r_shape],
+        });
+    }
+
+    Ok(matmul_wrapper(
+        l_shape,
+        r_shape,
+        |(li, lj), (ri, rj)| unsafe {
+            // SAFETY: indices are inherently valid
+            lhs.get_unchecked((lj, li)) * rhs.get_unchecked((ri, rj))
+        },
+    ))
 }
 
 /// Iteration wrapper for matrix multiplication. Applies `op` to each element pair (passes index), then sums the result

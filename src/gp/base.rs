@@ -4,10 +4,7 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIter
 use crate::{
     // indexing::index_to_2d,
     kernels::{Kernel, TriangleSide},
-    linalg::{
-        errors::IncompatibleShapeError, par_matmul, par_tr_matmul,
-        util::par_add_diagonal_mut_unchecked,
-    },
+    linalg::{errors::IncompatibleShapeError, par_tr_matmul, util::par_add_diagonal_mut_unchecked},
 };
 
 use super::errors::GPCompilationError;
@@ -96,6 +93,8 @@ impl<K: Kernel> GP<K> {
     }
 }
 
+pub type GPResult<T> = Result<T, IncompatibleShapeError>;
+
 pub struct CompiledGP<'kernel, K: Kernel> {
     /// The cholesky decomposition of (K + noise * I)
     cholesky: Cholesky<f64, Dynamic>,
@@ -108,40 +107,67 @@ pub struct CompiledGP<'kernel, K: Kernel> {
 }
 
 impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
-    // /// Compute the mean and variance from input data
-    // fn call(
-    //     &self,
-    //     x: &DMatrix<f64>,
-    // ) -> Result<(DMatrix<f64>, DMatrix<f64>), IncompatibleShapeError> {
+    /// Compute the mean and variance from input data
+    pub fn call(&self, x: &DMatrix<f64>) -> GPResult<(DVector<f64>, DVector<f64>)> {
+        let k_xp_x = self.kernel.call(x, self.x)?;
 
-    // }
+        let mean = self.mean_precomputed(&k_xp_x)?;
+        let var = self.var_precomputed(x, &k_xp_x)?;
+
+        Ok((mean, var))
+    }
 
     /// Compute the mean from input data
-    pub fn mean(&self, x: &DMatrix<f64>) -> Result<DVector<f64>, IncompatibleShapeError> {
-        // compute K*T
-        let k_x_xp = self.kernel.call(self.x, x)?;
-        let res = par_matmul(&k_x_xp, &self.alpha)?;
+    ///
+    /// `f = K*' [K + sI]^-1 y`
+    pub fn mean(&self, x: &DMatrix<f64>) -> GPResult<DVector<f64>> {
+        // compute K*'
+        let k_xp_x = self.kernel.call(x, self.x)?;
+        self.mean_precomputed(&k_xp_x)
+    }
 
+    /// Find the mean given a precomputed K*
+    fn mean_precomputed(&self, k_xp_x: &DMatrix<f64>) -> GPResult<DVector<f64>> {
+        let res = par_tr_matmul(&k_xp_x, &self.alpha)?;
         Ok(DVector::from_vec(res))
     }
 
-    // /// Compute just the diagonal variance
-    // pub fn var(&self, x: &DMatrix<f64>) -> Result<DVector<f64>, IncompatibleShapeError> {
+    /// Compute just the diagonal variance
+    pub fn var(&self, x: &DMatrix<f64>) -> GPResult<DVector<f64>> {
+        let k_xp_x = self.kernel.call(x, self.x)?;
+        self.var_precomputed(x, &k_xp_x)
+    }
 
-    // }
+    /// Find the variance given a precomputed K*
+    fn var_precomputed(&self, x: &DMatrix<f64>, k_xp_x: &DMatrix<f64>) -> GPResult<DVector<f64>> {
+        let mut k_xp_xp = self.kernel.call_diagonal(x)?;
+        let zipped = self.get_cov_offset(k_xp_x)?;
 
-    /// Compute the full variance matrix from input data
-    pub fn var_full(&self, x: &DMatrix<f64>) -> Result<DMatrix<f64>, IncompatibleShapeError> {
+        let len = k_xp_xp.len();
+
+        k_xp_xp
+            .as_mut_slice()
+            .into_par_iter()
+            .enumerate()
+            .for_each(|(index, v)| *v -= zipped[index + index * len]);
+
+        Ok(DVector::from_vec(k_xp_xp))
+    }
+
+    /// Compute the full covariance matrix from input data
+    ///
+    /// `V = K** - K*' [K + sI]^-1 K*`
+    pub fn cov(&self, x: &DMatrix<f64>) -> GPResult<DMatrix<f64>> {
         // compute K*
-        let mut k_x_xp = self.kernel.call(x, self.x)?;
+        let k_xp_x = self.kernel.call(x, self.x)?;
+        self.cov_precomputed(x, &k_xp_x)
+    }
 
+    /// Find the covariance matrix given a precomputed K*
+    fn cov_precomputed(&self, x: &DMatrix<f64>, k_xp_x: &DMatrix<f64>) -> GPResult<DMatrix<f64>> {
         // compute K**
         let mut k_xp_xp = self.kernel.call(x, x)?;
-
-        // TODO parallel cholesky solve
-        self.cholesky.solve_mut(&mut k_x_xp);
-
-        let zipped = par_tr_matmul(&k_x_xp);
+        let zipped = self.get_cov_offset(k_xp_x)?;
 
         k_xp_xp
             .as_mut_slice()
@@ -150,6 +176,15 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
             .for_each(|(l, r)| *l -= r);
 
         Ok(k_xp_xp)
+    }
+
+    fn get_cov_offset(&self, k_xp_x: &DMatrix<f64>) -> GPResult<Vec<f64>> {
+        // TODO parallel cholesky solve
+        let fact = self.cholesky.solve(&k_xp_x);
+
+        let zipped = par_tr_matmul(&k_xp_x, &fact)?;
+
+        Ok(zipped)
     }
 }
 
