@@ -1,5 +1,3 @@
-use std::ops::Mul;
-
 use nalgebra::{Cholesky, DMatrix, DVector, Dynamic};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
@@ -9,6 +7,7 @@ use crate::{
         errors::IncompatibleShapeError,
         {Kernel, TriangleSide},
     },
+    linalg::par_matmul,
 };
 
 use super::errors::GPCompilationError;
@@ -133,9 +132,9 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
     pub fn mean(&self, x: &DMatrix<f64>) -> Result<DVector<f64>, IncompatibleShapeError> {
         // compute K*T
         let k_x_xp = self.kernel.call(&self.x, x)?;
+        let res = par_matmul(&k_x_xp, &self.alpha)?;
 
-        // TODO parallelize matmul
-        Ok(k_x_xp.mul(&self.alpha))
+        Ok(DVector::from_column_slice(res.as_slice()))
     }
 
     // /// Compute just the diagonal variance
