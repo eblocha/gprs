@@ -1,3 +1,5 @@
+use std::iter::Sum;
+
 use nalgebra::{DMatrix, Dim, Matrix, Storage};
 use rayon::prelude::*;
 
@@ -53,24 +55,14 @@ where
         });
     }
 
-    // iterate down cols of rhs, zipping with the rows of the lhs. Outer loop is rhs cols, first inner loop is lhs rows.
-    // Second inner loop is zip of lhs cols and rhs rows.
-    let vals: Vec<f64> = (0..r_shape.1)
-        .into_par_iter()
-        .flat_map(move |rj| {
-            (0..l_shape.0).into_par_iter().map(move |li| {
-                (0..r_shape.0)
-                    .zip(0..l_shape.1)
-                    // SAFETY: indices are inherently valid since they come from the corresponding shapes
-                    .map(move |(ri, lj)| unsafe {
-                        lhs.get_unchecked((li, lj)) * rhs.get_unchecked((ri, rj))
-                    })
-                    .sum::<f64>()
-            })
-        })
-        .collect();
-
-    Ok(vals)
+    Ok(matmul_wrapper(
+        l_shape,
+        r_shape,
+        |(li, lj), (ri, rj)| unsafe {
+            // SAFETY: indices are inherently valid since they come from the corresponding shapes
+            lhs.get_unchecked((li, lj)) * rhs.get_unchecked((ri, rj))
+        },
+    ))
 }
 
 /// Parallel transpose matrix multiplication, equivalent to par_matmul(&mat.transpose(), &mat), but more efficient
@@ -100,20 +92,28 @@ where
 pub fn par_tr_matmul(v: &DMatrix<f64>) -> Vec<f64> {
     let shape = v.shape();
 
-    let vals: Vec<_> = (0..shape.1)
+    matmul_wrapper(shape, shape, |(li, lj), (ri, rj)| unsafe {
+        // SAFETY: indices are inherently valid
+        v.get_unchecked((lj, li)) * v.get_unchecked((ri, rj))
+    })
+}
+
+/// Iteration wrapper for matrix multiplication. Applies `op` to each element pair (passes index), then sums the result
+fn matmul_wrapper<O, R>(l_shape: (usize, usize), r_shape: (usize, usize), op: O) -> Vec<R>
+where
+    R: Sync + Send + Sum<R>,
+    O: Fn((usize, usize), (usize, usize)) -> R + Sync + Send,
+{
+    let op_ref = &op;
+    (0..r_shape.1)
         .into_par_iter()
         .flat_map(move |rj| {
-            (0..shape.0).into_par_iter().map(move |li| {
-                (0..shape.0)
-                    .zip(0..shape.1)
-                    // SAFETY: indices are inherently valid since they come from the corresponding shapes
-                    .map(move |(ri, lj)| unsafe {
-                        v.get_unchecked((lj, li)) * v.get_unchecked((ri, rj))
-                    })
-                    .sum::<f64>()
+            (0..l_shape.0).into_par_iter().map(move |li| {
+                (0..r_shape.0)
+                    .zip(0..l_shape.1)
+                    .map(move |(ri, lj)| op_ref((li, lj), (ri, rj)))
+                    .sum::<R>()
             })
         })
-        .collect();
-
-    vals
+        .collect()
 }
