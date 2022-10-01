@@ -2,9 +2,9 @@ use nalgebra::{Cholesky, DMatrix, DVector, Dynamic};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
 use crate::{
-    indexing::index_to_2d,
+    // indexing::index_to_2d,
     kernels::{Kernel, TriangleSide},
-    linalg::{errors::IncompatibleShapeError, par_matmul, par_tr_matmul},
+    linalg::{errors::IncompatibleShapeError, par_matmul, par_tr_matmul, util::add_diagonal_mut},
 };
 
 use super::errors::GPCompilationError;
@@ -72,18 +72,10 @@ impl<K: Kernel> GP<K> {
             Ok(v) => v,
         };
 
-        let noise = self.noise;
-
-        kxx.as_mut_slice()
-            .into_par_iter()
-            .enumerate()
-            .filter(|(index, _v)| {
-                let (i, j) = index_to_2d(*index, y.len());
-                i == j
-            })
-            .for_each(|(_i, v)| {
-                *v += noise;
-            });
+        // SAFETY: kxx is guaranteed to be square
+        unsafe {
+            add_diagonal_mut(&mut kxx, &self.noise);
+        }
 
         // TODO parallel cholesky decomp and solve
         let cholesky = match kxx.cholesky() {
@@ -168,7 +160,7 @@ mod tests {
 
     /// Predicting a noiseless GP on one of the input points returns the measured output
     #[test]
-    fn test_point() {
+    fn test_mean_noiseless() {
         let kern = RBF::new(vec![1.0].iter(), 1.0);
         let gp = GP::new(kern, 0.0);
 
@@ -183,6 +175,27 @@ mod tests {
         let res = compiled.mean(&xp).unwrap();
 
         assert_eq!(res.as_slice(), f.as_slice())
+    }
+
+    /// Predicting a noisy GP smooths the input data
+    #[test]
+    fn test_mean_noisy() {
+        let kern = RBF::new(vec![1.0].iter(), 1.0);
+        let gp = GP::new(kern, 1.2);
+
+        let x = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
+        let y = DVector::from_vec(vec![0.0, 1.0]);
+
+        let compiled = gp.compile(&x, &y).unwrap();
+
+        let xp = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
+        let f = DVector::from_vec(vec![0.0, 1.0]);
+
+        let res = compiled.mean(&xp).unwrap();
+
+        // results should be somewhere in-between the measured data
+        assert!(res[0] > f[0]);
+        assert!(res[1] < f[1]);
     }
 
     /// Attempting to compile a GP with a non-positive-definite covariance matrix will return an Err

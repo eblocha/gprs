@@ -22,17 +22,18 @@ fn criterion_benchmark(c: &mut Criterion) {
         .unwrap();
 
     const SZ: usize = 1000;
+    const NOISE: f64 = 1.2;
 
     c.bench_function("compile-gp", |b| {
-        let kern = RBF::new(vec![1.0].iter(), 1.0);
-        let gp = GP::new(kern, 0.0);
+        let kernel = RBF::new(vec![1.0].iter(), 1.0);
+        let gp = GP::new(kernel, NOISE);
         let (x, y) = create_random_data((1, SZ));
-        b.iter(|| gp.compile(black_box(&x), black_box(&y)))
+        b.iter(|| gp.compile(black_box(&x), black_box(&y)).unwrap())
     });
 
     c.bench_function("gp-mean", |b| {
-        let kern = RBF::new(vec![1.0].iter(), 1.0);
-        let gp = GP::new(kern, 0.0);
+        let kernel = RBF::new(vec![1.0].iter(), 1.0);
+        let gp = GP::new(kernel, NOISE);
         let (x, y) = create_random_data((1, SZ));
         let compiled = gp.compile(&x, &y).unwrap();
 

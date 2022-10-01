@@ -95,21 +95,20 @@ where
 ///     90.0, 108.0, 126.0,
 /// ];
 ///
-/// assert_eq!(par_tr_matmul(&v).unwrap(), expected);
+/// assert_eq!(par_tr_matmul(&v), expected);
 /// ```
 pub fn par_tr_matmul(v: &DMatrix<f64>) -> Vec<f64> {
     let shape = v.shape();
 
     let vals: Vec<_> = (0..shape.1)
         .into_par_iter()
-        .flat_map(|_rj| {
+        .flat_map(move |rj| {
             (0..shape.0).into_par_iter().map(move |li| {
                 (0..shape.0)
                     .zip(0..shape.1)
                     // SAFETY: indices are inherently valid since they come from the corresponding shapes
-                    .map(move |(_ri, lj)| unsafe {
-                        let val = v.get_unchecked((lj, li));
-                        val * val
+                    .map(move |(ri, lj)| unsafe {
+                        v.get_unchecked((lj, li)) * v.get_unchecked((ri, rj))
                     })
                     .sum::<f64>()
             })
