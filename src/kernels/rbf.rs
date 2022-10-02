@@ -219,10 +219,9 @@ impl Kernel for RBF {
     }
 
     fn call_diagonal(&self, x: &DMatrix<f64>) -> Result<Vec<f64>, IncompatibleShapeError> {
-        Ok(x.as_slice()
-            .par_chunks(x.shape().0)
-            .map(|point| self.call_point(point, point))
-            .collect::<Vec<f64>>())
+        Ok(x.column_iter()
+            .map(|point| self.call_point(point.as_slice(), point.as_slice()))
+            .collect())
     }
 }
 
