@@ -16,13 +16,13 @@ pub fn bench_rbf_kernel(c: &mut Criterion) {
         .unwrap();
 
     // This does allocations
-    c.bench_function("call-rbf", |b| {
+    c.bench_function(format!("rbf-call-{}", SIZE).as_str(), |b| {
         let x = create_random((2, SIZE));
         b.iter(|| kern.call(black_box(&x), black_box(&x)).unwrap());
     });
 
     // This does not allocate
-    c.bench_function("call-inplace-rbf", |b| {
+    c.bench_function(format!("rbf-call-inplace-{}", SIZE).as_str(), |b| {
         let x = create_random((2, SIZE));
         let mut raw = DMatrix::zeros(SIZE, SIZE);
         b.iter(|| {
@@ -32,12 +32,18 @@ pub fn bench_rbf_kernel(c: &mut Criterion) {
     });
 
     // Only compute half the covariance matrix
-    c.bench_function("call-triangular-rbf", |b| {
+    c.bench_function(format!("rbf-call-triangular-{}", SIZE).as_str(), |b| {
         let x = create_random((2, SIZE));
         b.iter(|| {
             kern.call_triangular(black_box(&x), TriangleSide::LOWER)
                 .unwrap()
         });
+    });
+
+    // Only compute half the covariance matrix
+    c.bench_function(format!("rbf-call-diagonal-{}", SIZE).as_str(), |b| {
+        let x = create_random((2, SIZE));
+        b.iter(|| kern.call_diagonal(black_box(&x)).unwrap());
     });
 }
 

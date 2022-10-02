@@ -14,14 +14,14 @@ fn bench_matmul(c: &mut Criterion) {
 
     const SZ: usize = 500;
 
-    c.bench_function("matmul-different", |b| {
+    c.bench_function(format!("matmul-asymmetric-{}", SZ).as_str(), |b| {
         let lhs = create_random((SZ, SZ));
         let rhs = create_random((SZ, SZ));
 
         b.iter(|| par_matmul(black_box(&lhs), black_box(&rhs)).unwrap());
     });
 
-    c.bench_function("matmul-transpose", |b| {
+    c.bench_function(format!("matmul-transpose-{}", SZ).as_str(), |b| {
         let lhs = create_random((SZ, SZ));
 
         b.iter(|| par_tr_matmul(black_box(&lhs), black_box(&lhs)).unwrap());

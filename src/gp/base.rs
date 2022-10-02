@@ -4,7 +4,10 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIter
 use crate::{
     // indexing::index_to_2d,
     kernels::{Kernel, TriangleSide},
-    linalg::{errors::IncompatibleShapeError, par_tr_matmul, util::par_add_diagonal_mut_unchecked},
+    linalg::{
+        errors::IncompatibleShapeError, par_tr_matmul, par_tr_matmul_diag,
+        util::par_add_diagonal_mut_unchecked,
+    },
 };
 
 use super::errors::GPCompilationError;
@@ -26,7 +29,7 @@ impl<K: Kernel> GP<K> {
         GP { kernel, noise }
     }
 
-    /// Compile this GP for training or estimation
+    /// Compile this GP for training or estimation. Consumes `self` and `x`.
     ///
     /// # Examples
     /// ```rust
@@ -52,11 +55,11 @@ impl<K: Kernel> GP<K> {
     ///     1.5,
     /// ]);
     ///
-    /// let compiled = gp.compile(&x, &y).unwrap();
+    /// let compiled = gp.compile(x, &y).unwrap();
     /// ```
     pub fn compile<'a>(
-        &'a self,
-        x: &'a DMatrix<f64>,
+        self,
+        x: DMatrix<f64>,
         y: &DVector<f64>,
     ) -> Result<CompiledGP<K>, GPCompilationError> {
         if x.shape().1 != y.len() {
@@ -67,7 +70,7 @@ impl<K: Kernel> GP<K> {
             ));
         }
 
-        let mut kxx = match self.kernel.call_triangular(x, TriangleSide::LOWER) {
+        let mut kxx = match self.kernel.call_triangular(&x, TriangleSide::LOWER) {
             Err(e) => return Err(GPCompilationError::IncompatibleShapeError(e)),
             Ok(v) => v,
         };
@@ -87,7 +90,7 @@ impl<K: Kernel> GP<K> {
         Ok(CompiledGP {
             cholesky,
             alpha,
-            kernel: &self.kernel,
+            kernel: self.kernel,
             x,
         })
     }
@@ -95,21 +98,21 @@ impl<K: Kernel> GP<K> {
 
 pub type GPResult<T> = Result<T, IncompatibleShapeError>;
 
-pub struct CompiledGP<'kernel, K: Kernel> {
+pub struct CompiledGP<K: Kernel> {
     /// The cholesky decomposition of (K + noise * I)
     cholesky: Cholesky<f64, Dynamic>,
     /// Factor to compute mean
     alpha: DVector<f64>,
     /// The original kernel
-    kernel: &'kernel K,
+    kernel: K,
     /// The input data set
-    x: &'kernel DMatrix<f64>,
+    x: DMatrix<f64>,
 }
 
-impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
+impl<K: Kernel> CompiledGP<K> {
     /// Compute the mean and variance from input data
     pub fn call(&self, x: &DMatrix<f64>) -> GPResult<(DVector<f64>, DVector<f64>)> {
-        let k_xp_x = self.kernel.call(x, self.x)?;
+        let k_xp_x = self.kernel.call(x, &self.x)?;
 
         let mean = self.mean_precomputed(&k_xp_x)?;
         let var = self.var_precomputed(x, &k_xp_x)?;
@@ -122,7 +125,7 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
     /// `f = K*' [K + sI]^-1 y`
     pub fn mean(&self, x: &DMatrix<f64>) -> GPResult<DVector<f64>> {
         // compute K*'
-        let k_xp_x = self.kernel.call(x, self.x)?;
+        let k_xp_x = self.kernel.call(x, &self.x)?;
         self.mean_precomputed(&k_xp_x)
     }
 
@@ -134,22 +137,21 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
 
     /// Compute just the diagonal variance
     pub fn var(&self, x: &DMatrix<f64>) -> GPResult<DVector<f64>> {
-        let k_xp_x = self.kernel.call(x, self.x)?;
+        let k_xp_x = self.kernel.call(x, &self.x)?;
         self.var_precomputed(x, &k_xp_x)
     }
 
     /// Find the variance given a precomputed K*
     fn var_precomputed(&self, x: &DMatrix<f64>, k_xp_x: &DMatrix<f64>) -> GPResult<DVector<f64>> {
         let mut k_xp_xp = self.kernel.call_diagonal(x)?;
-        let zipped = self.get_cov_offset(k_xp_x)?;
-
-        let len = k_xp_xp.len();
+        let fact = self.cholesky.solve(&k_xp_x);
+        let zipped = par_tr_matmul_diag(&k_xp_x, &fact)?;
 
         k_xp_xp
             .as_mut_slice()
             .into_par_iter()
-            .enumerate()
-            .for_each(|(index, v)| *v -= zipped[index + index * len]);
+            .zip(zipped)
+            .for_each(|(l, r)| *l -= r);
 
         Ok(DVector::from_vec(k_xp_xp))
     }
@@ -159,7 +161,7 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
     /// `V = K** - K*' [K + sI]^-1 K*`
     pub fn cov(&self, x: &DMatrix<f64>) -> GPResult<DMatrix<f64>> {
         // compute K*
-        let k_xp_x = self.kernel.call(x, self.x)?;
+        let k_xp_x = self.kernel.call(x, &self.x)?;
         self.cov_precomputed(x, &k_xp_x)
     }
 
@@ -167,7 +169,8 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
     fn cov_precomputed(&self, x: &DMatrix<f64>, k_xp_x: &DMatrix<f64>) -> GPResult<DMatrix<f64>> {
         // compute K**
         let mut k_xp_xp = self.kernel.call(x, x)?;
-        let zipped = self.get_cov_offset(k_xp_x)?;
+        let fact = self.cholesky.solve(&k_xp_x);
+        let zipped = par_tr_matmul(&k_xp_x, &fact)?;
 
         k_xp_xp
             .as_mut_slice()
@@ -176,15 +179,6 @@ impl<'kernel, K: Kernel> CompiledGP<'kernel, K> {
             .for_each(|(l, r)| *l -= r);
 
         Ok(k_xp_xp)
-    }
-
-    fn get_cov_offset(&self, k_xp_x: &DMatrix<f64>) -> GPResult<Vec<f64>> {
-        // TODO parallel cholesky solve
-        let fact = self.cholesky.solve(&k_xp_x);
-
-        let zipped = par_tr_matmul(&k_xp_x, &fact)?;
-
-        Ok(zipped)
     }
 }
 
@@ -205,7 +199,7 @@ mod tests {
         let x = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
         let y = DVector::from_vec(vec![0.0, 1.0]);
 
-        let compiled = gp.compile(&x, &y).unwrap();
+        let compiled = gp.compile(x, &y).unwrap();
 
         let xp = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
         let f = DVector::from_vec(vec![0.0, 1.0]);
@@ -224,7 +218,7 @@ mod tests {
         let x = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
         let y = DVector::from_vec(vec![0.0, 1.0]);
 
-        let compiled = gp.compile(&x, &y).unwrap();
+        let compiled = gp.compile(x, &y).unwrap();
 
         let xp = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
         let f = DVector::from_vec(vec![0.0, 1.0]);
@@ -246,6 +240,6 @@ mod tests {
         let x = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
         let y = DVector::from_vec(vec![0.0, 1.0]);
 
-        gp.compile(&x, &y).unwrap();
+        gp.compile(x, &y).unwrap();
     }
 }
