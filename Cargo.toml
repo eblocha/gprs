@@ -13,6 +13,10 @@ rayon = "1.5.3"
 criterion = { version = "0.3", features = ["html_reports"] }
 nalgebra = { version = "0.31.1", features = ["rand"] }
 
+[lib]
+bench = false
+crate-type = ["lib"]
+
 [[bench]]
 name = "gp"
 harness = false
