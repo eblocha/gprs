@@ -35,5 +35,6 @@ pub trait Kernel {
         side: TriangleSide,
     ) -> Result<DMatrix<f64>, IncompatibleShapeError>;
 
+    /// Compute only the diagonal portion of the covariance matrix
     fn call_diagonal(&self, x: &DMatrix<f64>) -> Result<Vec<f64>, IncompatibleShapeError>;
 }
