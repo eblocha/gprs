@@ -66,12 +66,9 @@ fn solve_lower_triangular_vector_unchecked_mut(a: &DMatrix<f64>, b: &mut [f64]) 
     let dim = a.nrows();
 
     for i in 0..dim {
-        let coeff;
-
         unsafe {
-            let diag = a.get_unchecked((i, i)).clone();
-            coeff = b.get_unchecked(i) / diag;
-            *b.get_unchecked_mut(i) = coeff.clone();
+            let coeff = b.get_unchecked(i) / a.get_unchecked((i, i));
+            *b.get_unchecked_mut(i) = coeff;
 
             b.get_unchecked_mut(i + 1..)
                 .iter_mut()
