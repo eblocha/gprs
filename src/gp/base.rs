@@ -5,8 +5,8 @@ use crate::{
     // indexing::index_to_2d,
     kernels::{Kernel, TriangleSide},
     linalg::{
-        errors::IncompatibleShapeError, par_tr_matmul, par_tr_matmul_diag,
-        util::par_add_diagonal_mut_unchecked,
+        errors::IncompatibleShapeError, par_solve_lower_triangular_unchecked, par_tr_matmul,
+        par_tr_matmul_diag, util::par_add_diagonal_mut_unchecked,
     },
 };
 
@@ -144,10 +144,7 @@ impl<K: Kernel> CompiledGP<K> {
     /// Find the variance given a precomputed K*
     fn var_precomputed(&self, x: &DMatrix<f64>, k_xp_x: &DMatrix<f64>) -> GPResult<DVector<f64>> {
         let mut k_xp_xp = self.kernel.call_diagonal(x)?;
-        let fact = self
-            .cholesky
-            .l_dirty()
-            .solve_lower_triangular_unchecked(&k_xp_x);
+        let fact = par_solve_lower_triangular_unchecked(self.cholesky.l_dirty(), &k_xp_x);
         let zipped = par_tr_matmul_diag(&fact, &fact)?;
 
         k_xp_xp
@@ -172,10 +169,7 @@ impl<K: Kernel> CompiledGP<K> {
     fn cov_precomputed(&self, x: &DMatrix<f64>, k_xp_x: &DMatrix<f64>) -> GPResult<DMatrix<f64>> {
         // compute K**
         let mut k_xp_xp = self.kernel.call(x, x)?;
-        let fact = self
-            .cholesky
-            .l_dirty()
-            .solve_lower_triangular_unchecked(&k_xp_x);
+        let fact = par_solve_lower_triangular_unchecked(self.cholesky.l_dirty(), &k_xp_x);
         let zipped = par_tr_matmul(&fact, &fact)?;
 
         k_xp_xp
