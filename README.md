@@ -60,7 +60,7 @@ fn main() {
 
     // Note that `call` will be more efficient than calling the `mean` and `var` functions independently.
     // Additionally, the variance computation is very expensive since it involves large matrix multiplications
-    // If you only need to estimate the mean, use the `mean` method, which is about 25x faster.
+    // If you only need to estimate the mean, use the `mean` method, which is much faster.
 
     // If you need the full covariance matrix, you can use the `cov` method:
     let cov = compiled.cov(&x_pred).unwrap();
