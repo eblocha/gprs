@@ -49,15 +49,29 @@ fn main() {
     ]);
 
     // May return an IncompatibleShapeError
-    let mean = compiled.mean(x_pred).unwrap();
+    let mean = compiled.mean(&x_pred).unwrap();
 
     // `mean` is a `nalgebra::DVector<f64>` with length 4
+
+    // Can also compute the variance with the mean, or either independently
+    let mean, var = compiled.call(&x_pred).unwrap();
+    // `mean` and `var` are both `nalgebra::DVector<f64>` with length 4
+    let var = compiled.var(&x_pred).unwrap();
+
+    // Note that `call` will be more efficient than calling the `mean` and `var` functions independently.
+    // Additionally, the variance computation is very expensive since it involves large matrix multiplications
+    // If you only need to estimate the mean, use the `mean` method, which is about 25x faster.
+
+    // If you need the full covariance matrix, you can use the `cov` method:
+    let cov = compiled.cov(&x_pred).unwrap();
+
+    // Be aware that this is far slower than `mean` or `var`.
 }
 ```
 
 ## Goals
 
-- [ ] Implement basic gaussian process regression with RBF
+- [x] Implement basic gaussian process regression with RBF
 - [ ] Allow use of trained and untrained mean function (prior)
   - [ ] trained -> implements derivatives
   - [ ] untrained -> simple function
