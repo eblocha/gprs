@@ -6,7 +6,7 @@ This is my first serious rust library, to help me learn the language!
 
 ## Features
 
-Currently, I have implemented the RBF kernel and the GP mean calculation.
+Currently, I have implemented the RBF kernel and basic GP with mean and covariance.
 
 ```rs
 use gprs::{kernels::{RBF,Kernel},gp::GP};
