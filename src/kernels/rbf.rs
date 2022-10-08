@@ -223,25 +223,23 @@ impl Kernel for RBF {
     }
 }
 
-/// Clone a vector with cloneable elements
-fn clone_vec<T: Clone>(vec: &[T]) -> Vec<T> {
-    vec.to_vec()
-}
-
-impl<'a> Parameterized<'a, (&'a Vec<f64>, f64)> for RBF {
-    fn get_params(&'a self) -> (&'a Vec<f64>, f64) {
-        (&self.gamma, self.amplitude)
+impl<'a> Parameterized<'a> for RBF {
+    fn get_params(&'a self) -> Vec<f64> {
+        let mut params = Vec::with_capacity(1 + self.gamma.len());
+        params.push(self.amplitude);
+        params.extend(self.gamma.to_vec());
+        params
     }
 
-    fn set_params<'b>(&'a mut self, params: (&'b Vec<f64>, f64)) {
-        self.gamma = clone_vec(params.0);
-        self.amplitude = params.1
+    fn set_params<'b>(&'a mut self, params: &[f64]) {
+        self.amplitude = params[0].clone();
+        params[1..].clone_into(&mut self.gamma);
     }
 
-    fn from_params(params: (&Vec<f64>, f64)) -> Self {
+    fn from_params(params: &[f64]) -> Self {
         RBF {
-            gamma: clone_vec(params.0),
-            amplitude: params.1,
+            gamma: params[1..].to_vec(),
+            amplitude: params[0].clone(),
         }
     }
 }
