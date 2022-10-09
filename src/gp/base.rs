@@ -57,7 +57,7 @@ impl<K: Kernel> GP<K> {
     ///
     /// let compiled = gp.compile(x, &y).unwrap();
     /// ```
-    pub fn compile<'a>(
+    pub fn compile(
         self,
         x: DMatrix<f64>,
         y: &DVector<f64>,
@@ -131,7 +131,7 @@ impl<K: Kernel> CompiledGP<K> {
 
     /// Find the mean given a precomputed K*
     fn mean_precomputed(&self, k_x_xp: &DMatrix<f64>) -> GPResult<DVector<f64>> {
-        let res = par_tr_matmul(&k_x_xp, &self.alpha)?;
+        let res = par_tr_matmul(k_x_xp, &self.alpha)?;
         Ok(DVector::from_vec(res))
     }
 
@@ -144,7 +144,7 @@ impl<K: Kernel> CompiledGP<K> {
     /// Find the variance given a precomputed K*
     fn var_precomputed(&self, x: &DMatrix<f64>, k_x_xp: &DMatrix<f64>) -> GPResult<DVector<f64>> {
         let mut k_xp_xp = self.kernel.call_diagonal(x)?;
-        let fact = par_solve_lower_triangular_unchecked(self.cholesky.l_dirty(), &k_x_xp);
+        let fact = par_solve_lower_triangular_unchecked(self.cholesky.l_dirty(), k_x_xp);
         let zipped = par_tr_matmul_diag(&fact, &fact)?;
 
         k_xp_xp
@@ -169,7 +169,7 @@ impl<K: Kernel> CompiledGP<K> {
     fn cov_precomputed(&self, x: &DMatrix<f64>, k_x_xp: &DMatrix<f64>) -> GPResult<DMatrix<f64>> {
         // compute K**
         let mut k_xp_xp = self.kernel.call(x, x)?;
-        let fact = par_solve_lower_triangular_unchecked(self.cholesky.l_dirty(), &k_x_xp);
+        let fact = par_solve_lower_triangular_unchecked(self.cholesky.l_dirty(), k_x_xp);
         let zipped = par_tr_matmul(&fact, &fact)?;
 
         k_xp_xp

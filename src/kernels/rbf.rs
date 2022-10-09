@@ -232,14 +232,14 @@ impl<'a> Parameterized<'a> for RBF {
     }
 
     fn set_params<'b>(&'a mut self, params: &[f64]) {
-        self.amplitude = params[0].clone();
+        self.amplitude = params[0];
         params[1..].clone_into(&mut self.gamma);
     }
 
     fn from_params(params: &[f64]) -> Self {
         RBF {
             gamma: params[1..].to_vec(),
-            amplitude: params[0].clone(),
+            amplitude: params[0],
         }
     }
 }
