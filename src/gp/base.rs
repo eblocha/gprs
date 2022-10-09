@@ -241,4 +241,41 @@ mod tests {
 
         gp.compile(x, &y).unwrap();
     }
+
+    /// Variance will be 0 for a noiseless GP at the training points
+    #[test]
+    fn test_var_noisless() {
+        let kern = RBF::new(vec![1.0].iter(), 1.0);
+        let gp = GP::new(kern, 0.0);
+
+        let x = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
+        let y = DVector::from_vec(vec![0.0, 1.0]);
+
+        let compiled = gp.compile(x, &y).unwrap();
+
+        let xp = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
+        let f = DVector::from_vec(vec![0.0, 0.0]);
+
+        let res = compiled.var(&xp).unwrap();
+
+        assert_eq!(res.as_slice(), f.as_slice())
+    }
+
+    /// Variance will be > 0 for a noisy GP
+    #[test]
+    fn test_var_noisy() {
+        let kern = RBF::new(vec![1.0].iter(), 1.0);
+        let gp = GP::new(kern, 1.0);
+
+        let x = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
+        let y = DVector::from_vec(vec![0.0, 1.0]);
+
+        let compiled = gp.compile(x, &y).unwrap();
+
+        let xp = DMatrix::from_vec(1, 3, vec![0.0, 0.5, 1.0]);
+
+        let res = compiled.var(&xp).unwrap();
+
+        assert!(res.iter().all(|v| *v > 0.0))
+    }
 }
