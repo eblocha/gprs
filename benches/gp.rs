@@ -22,7 +22,7 @@ const SZ: usize = 1000;
 const NOISE: f64 = 1.2;
 
 fn setup() -> (GP<RBF>, DMatrix<f64>, DVector<f64>) {
-    let kernel = RBF::new(vec![1.0].iter(), 1.0);
+    let kernel = RBF::new(vec![1.0], 1.0);
     let gp = GP::new(kernel, NOISE);
     let (x, y) = create_random_data((1, SZ));
 

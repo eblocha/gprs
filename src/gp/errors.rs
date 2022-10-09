@@ -1,6 +1,6 @@
 use crate::linalg::errors::IncompatibleShapeError;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum GPCompilationError {
     /// The kernel returned a non-positive-definite covariance matrix for the input data.
     ///

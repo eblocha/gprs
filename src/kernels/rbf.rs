@@ -22,7 +22,7 @@ use rayon::prelude::*;
 /// use nalgebra::{DVector,DMatrix};
 ///
 /// // create a 2-d RBF kernel
-/// let kern = RBF::new(vec![1.0, 2.0].iter(), 1.0);
+/// let kern = RBF::new(vec![1.0, 2.0], 1.0);
 /// // estimate covariance between 2 sets of points
 /// let x = DMatrix::from_vec(2, 3, vec![
 ///     1.8, 5.5,
@@ -58,9 +58,9 @@ pub struct RBF {
 
 impl RBF {
     /// Create a new kernel from a length scale. Length scales are squared.
-    pub fn new<'a, I>(length_scale: I, sigma: f64) -> Self
+    pub fn new<I>(length_scale: I, sigma: f64) -> Self
     where
-        I: Iterator<Item = &'a f64>,
+        I: IntoIterator<Item = f64>,
     {
         let gamma = Self::gamma(length_scale);
         RBF {
@@ -72,11 +72,11 @@ impl RBF {
     /// Compute the gamma property from a length scale vec
     ///
     /// This speeds up covariance computation by pre-computing `-1 / (2 * l^2)`
-    fn gamma<'a, I>(length_scale: I) -> Vec<f64>
+    fn gamma<I>(length_scale: I) -> Vec<f64>
     where
-        I: Iterator<Item = &'a f64>,
+        I: IntoIterator<Item = f64>,
     {
-        length_scale.map(|v| -0.5 / (v * v)).collect()
+        length_scale.into_iter().map(|v| -0.5 / (v * v)).collect()
     }
 
     /// Compute the covariance between 2 points
@@ -250,7 +250,7 @@ mod tests {
     use nalgebra::DMatrix;
 
     fn create(v: Vec<f64>) -> RBF {
-        RBF::new(v.iter(), 1.0)
+        RBF::new(v, 1.0)
     }
 
     /// Passing invalid data will return an error

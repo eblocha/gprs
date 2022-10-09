@@ -17,7 +17,7 @@ fn main() {
     use nalgebra::{DVector, DMatrix};
 
     // create a 2-d anisotropic RBF kernel with length scales of 1.0 and 2.0, and a sigma of 1.0
-    let kernel = RBF::new(vec![1.0, 2.0].iter(), 1.0);
+    let kernel = RBF::new(vec![1.0, 2.0], 1.0);
 
     // create a GP from this kernel with a noise value (sigma) of 1.0. Use 0.0 for noiseless GP
     let gp = GP::new(

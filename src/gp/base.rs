@@ -37,7 +37,7 @@ impl<K: Kernel> GP<K> {
     /// use gprs::{gp::GP, kernels::{Kernel, RBF}};
     /// use nalgebra::{DVector, DMatrix};
     ///
-    /// let kernel = RBF::new(vec![1.0, 2.0].iter(), 1.0);
+    /// let kernel = RBF::new(vec![1.0, 2.0], 1.0);
     ///
     /// let gp = GP::new(
     ///     kernel,
@@ -195,7 +195,7 @@ mod tests {
     /// Predicting a noiseless GP on one of the input points returns the measured output
     #[test]
     fn test_mean_noiseless() {
-        let kern = RBF::new(vec![1.0].iter(), 1.0);
+        let kern = RBF::new(vec![1.0], 1.0);
         let gp = GP::new(kern, 0.0);
 
         let x = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
@@ -214,7 +214,7 @@ mod tests {
     /// Predicting a noisy GP smooths the input data
     #[test]
     fn test_mean_noisy() {
-        let kern = RBF::new(vec![1.0].iter(), 1.0);
+        let kern = RBF::new(vec![1.0], 1.0);
         let gp = GP::new(kern, 1.2);
 
         let x = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
@@ -234,7 +234,7 @@ mod tests {
     /// Attempting to compile a GP with a non-positive-definite covariance matrix will return an Err
     #[test]
     fn test_non_positive_definite() {
-        let kern = RBF::new(vec![1.0].iter(), 1.0);
+        let kern = RBF::new(vec![1.0], 1.0);
         let gp = GP::new(kern, 0.0);
 
         let x = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
@@ -247,7 +247,7 @@ mod tests {
     /// Variance will be 0 for a noiseless GP at the training points
     #[test]
     fn test_var_noisless() {
-        let kern = RBF::new(vec![1.0].iter(), 1.0);
+        let kern = RBF::new(vec![1.0], 1.0);
         let gp = GP::new(kern, 0.0);
 
         let x = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
@@ -266,7 +266,7 @@ mod tests {
     /// Variance will be > 0 for a noisy GP
     #[test]
     fn test_var_noisy() {
-        let kern = RBF::new(vec![1.0].iter(), 1.0);
+        let kern = RBF::new(vec![1.0], 1.0);
         let gp = GP::new(kern, 1.0);
 
         let x = DMatrix::from_vec(1, 2, vec![0.0, 1.0]);
