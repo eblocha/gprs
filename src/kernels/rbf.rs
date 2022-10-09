@@ -48,7 +48,7 @@ use rayon::prelude::*;
 /// use gprs::parameterized::Parameterized;
 /// use nalgebra::DVector;
 ///
-/// let kern = RBF::from_params((&vec![-0.5, -0.125], 1.0));
+/// let kern = RBF::from_params(vec![1.0, -0.5, -0.125].as_slice());
 /// ```
 #[derive(Debug)]
 pub struct RBF {
