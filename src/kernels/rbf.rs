@@ -255,13 +255,13 @@ mod tests {
 
     /// Passing invalid data will return an error
     #[test]
-    #[should_panic]
     fn test_mismatched() {
         let kern = create(vec![1.0]);
 
         let x = DMatrix::from_vec(2, 1, vec![1.0, 1.0]);
         let y = DMatrix::from_vec(2, 1, vec![1.0, 1.0]);
-        kern.call(&x, &y).unwrap();
+        let err = kern.call(&x, &y).unwrap_err();
+        assert!(err.shapes.len() > 0);
     }
 
     /// Passing a zero lengthscale will produce NaN

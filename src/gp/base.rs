@@ -19,6 +19,7 @@ use super::errors::GPCompilationError;
 /// `f = K*T [K + sI]^-1 y`
 ///
 /// `cov = K** - K*T [K + sI]^-1 K*`
+#[derive(Debug)]
 pub struct GP<K: Kernel> {
     kernel: K,
     noise: f64,
@@ -98,6 +99,7 @@ impl<K: Kernel> GP<K> {
 
 pub type GPResult<T> = Result<T, IncompatibleShapeError>;
 
+#[derive(Debug)]
 pub struct CompiledGP<K: Kernel> {
     /// The cholesky decomposition of (K + noise * I)
     cholesky: Cholesky<f64, Dynamic>,
@@ -186,7 +188,7 @@ impl<K: Kernel> CompiledGP<K> {
 mod tests {
     use nalgebra::{DMatrix, DVector};
 
-    use crate::kernels::RBF;
+    use crate::{gp::errors::GPCompilationError, kernels::RBF};
 
     use super::GP;
 
@@ -226,12 +228,11 @@ mod tests {
 
         // results should be somewhere in-between the measured data
         assert!(res[0] > 0.0);
-        assert!(res[2] < 1.1);
+        assert!(res[2] < 1.0);
     }
 
     /// Attempting to compile a GP with a non-positive-definite covariance matrix will return an Err
     #[test]
-    #[should_panic]
     fn test_non_positive_definite() {
         let kern = RBF::new(vec![1.0].iter(), 1.0);
         let gp = GP::new(kern, 0.0);
@@ -239,7 +240,8 @@ mod tests {
         let x = DMatrix::from_vec(1, 2, vec![1.0, 1.0]);
         let y = DVector::from_vec(vec![0.0, 1.0]);
 
-        gp.compile(x, &y).unwrap();
+        let result = gp.compile(x, &y).unwrap_err();
+        assert_eq!(result, GPCompilationError::NonPositiveDefiniteError);
     }
 
     /// Variance will be 0 for a noiseless GP at the training points
