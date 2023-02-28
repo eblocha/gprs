@@ -81,11 +81,9 @@ impl<K: Kernel> GP<K> {
             par_add_diagonal_mut_unchecked(&mut kxx, &self.noise);
         }
 
-        // TODO parallel cholesky decomp and solve
-        let cholesky = match kxx.cholesky() {
-            None => return Err(GPCompilationError::NonPositiveDefiniteError),
-            Some(v) => v,
-        };
+        let cholesky = kxx
+            .cholesky()
+            .ok_or(GPCompilationError::NonPositiveDefiniteError)?;
         let alpha = cholesky.solve(y);
 
         Ok(CompiledGP {
