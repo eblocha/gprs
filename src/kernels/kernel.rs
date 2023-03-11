@@ -9,8 +9,6 @@ pub enum TriangleSide {
 
 pub trait Kernel {
     /// Compute the covariance between sets of points
-    ///
-    /// Returns a MismatchedSizeError if the dimensions are not valid
     fn call(
         &self,
         x: &DMatrix<f64>,
