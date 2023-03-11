@@ -71,10 +71,10 @@ impl<K: Kernel> GP<K> {
             ));
         }
 
-        let mut kxx = match self.kernel.call_triangular(&x, TriangleSide::LOWER) {
-            Err(e) => return Err(GPCompilationError::IncompatibleShapeError(e)),
-            Ok(v) => v,
-        };
+        let mut kxx = self
+            .kernel
+            .call_triangular(&x, TriangleSide::LOWER)
+            .map_err(GPCompilationError::IncompatibleShapeError)?;
 
         // SAFETY: kxx is guaranteed to be square
         unsafe {
