@@ -114,9 +114,9 @@ impl RBF {
         Ok(())
     }
 
-    fn call_triangular_inplace<'x>(
+    fn call_triangular_inplace(
         &self,
-        x: &'x DMatrix<f64>,
+        x: &DMatrix<f64>,
         side: TriangleSide,
         into: &mut DMatrix<f64>,
     ) -> Result<(), IncompatibleShapeError> {
@@ -156,10 +156,10 @@ impl RBF {
 }
 
 impl Kernel for RBF {
-    fn call_inplace<'x, 'y>(
+    fn call_inplace(
         &self,
-        x: &'x DMatrix<f64>,
-        y: &'y DMatrix<f64>,
+        x: &DMatrix<f64>,
+        y: &DMatrix<f64>,
         into: &mut DMatrix<f64>,
     ) -> Result<(), IncompatibleShapeError> {
         let x_shape = x.shape();
