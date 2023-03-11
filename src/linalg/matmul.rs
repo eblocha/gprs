@@ -176,7 +176,7 @@ where
 fn matmul_wrapper<O, R>(l_shape: (usize, usize), r_shape: (usize, usize), op: O) -> Vec<R>
 where
     R: Sync + Send + Sum<R>,
-    O: Fn((usize, usize), (usize, usize)) -> R + Sync + Send,
+    O: Fn((usize, usize), (usize, usize)) -> R + Sync,
 {
     let op_ref = &op;
     (0..r_shape.1)
@@ -196,7 +196,7 @@ where
 fn matmul_wrapper_diag<O, R>(l_shape: (usize, usize), r_shape: (usize, usize), op: O) -> Vec<R>
 where
     R: Sync + Send + Sum<R>,
-    O: Fn((usize, usize), (usize, usize)) -> R + Sync + Send,
+    O: Fn((usize, usize), (usize, usize)) -> R + Sync,
 {
     let op_ref = &op;
     (0..r_shape.1)
