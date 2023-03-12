@@ -175,7 +175,7 @@ where
 /// Iteration wrapper for matrix multiplication. Applies `op` to each element pair (passes index), then sums the result
 fn matmul_wrapper<O, R>(l_shape: (usize, usize), r_shape: (usize, usize), op: O) -> Vec<R>
 where
-    R: Sync + Send + Sum<R>,
+    R: Send + Sum<R>,
     O: Fn((usize, usize), (usize, usize)) -> R + Sync,
 {
     let op_ref = &op;
@@ -195,7 +195,7 @@ where
 /// Iteration wrapper for diagonal-only matrix multiplication
 fn matmul_wrapper_diag<O, R>(l_shape: (usize, usize), r_shape: (usize, usize), op: O) -> Vec<R>
 where
-    R: Sync + Send + Sum<R>,
+    R: Send + Sum<R>,
     O: Fn((usize, usize), (usize, usize)) -> R + Sync,
 {
     let op_ref = &op;
